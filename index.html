@@ -57,12 +57,51 @@
     <script type="text/babel">
         const { useState, useMemo, useEffect, useRef } = React;
 
-        // --- Componente de Icono (Wrapper para Lucide) ---
+        // --- Componente de Icono Corregido (Versión Robusta) ---
         const Icon = ({ name, size = 20, className = "" }) => {
-            useEffect(() => {
-                lucide.createIcons();
-            }, [name]); // Re-run cuando cambia el nombre
-            return <i data-lucide={name} width={size} height={size} className={className}></i>;
+            const iconName = useMemo(() => {
+                // Convertir kebab-case (ej: book-open) a PascalCase (ej: BookOpen)
+                return name.replace(/(^\w|-\w)/g, (clear) => clear.replace('-', '').toUpperCase());
+            }, [name]);
+
+            const svgHtml = useMemo(() => {
+                if (!window.lucide || !window.lucide.icons) return '';
+                
+                const iconDef = window.lucide.icons[iconName];
+                if (!iconDef) {
+                    console.warn(`Icono no encontrado: ${iconName}`);
+                    return '';
+                }
+
+                try {
+                    // Método moderno: usar createElement
+                    if (typeof window.lucide.createElement === 'function') {
+                        const element = window.lucide.createElement(iconDef);
+                        // Aplicar atributos manualmente al elemento SVG generado
+                        element.setAttribute('width', size);
+                        element.setAttribute('height', size);
+                        if (className) {
+                            // Combinar clases existentes con la nueva (si las hay)
+                            const existingClass = element.getAttribute('class') || '';
+                            element.setAttribute('class', `${existingClass} ${className}`.trim());
+                        }
+                        return element.outerHTML;
+                    }
+                } catch (e) {
+                    console.error("Error generando icono:", e);
+                    return '';
+                }
+                return '';
+            }, [iconName, size, className]);
+
+            if (!svgHtml) return <span style={{ width: size, height: size, display: 'inline-block' }} />;
+
+            return (
+                <span 
+                    dangerouslySetInnerHTML={{ __html: svgHtml }} 
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                />
+            );
         };
 
         // --- Componente de Gráfico (Wrapper para Chart.js) ---
@@ -75,17 +114,21 @@
 
                 const ctx = canvasRef.current.getContext('2d');
 
-                // Destruir instancia anterior si existe
+                // 1. Destrucción segura de la instancia anterior
                 if (chartInstanceRef.current) {
                     chartInstanceRef.current.destroy();
+                    chartInstanceRef.current = null;
                 }
+
+                // 2. Limpieza explícita del canvas para evitar "fantasmas" visuales
+                ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
                 // Preparar datasets
                 const datasets = institutions.map(inst => {
-                    // Mapear datos al eje X (fechas)
-                    const dataPoints = data.map(d => d[inst.name]); 
+                    // Mapear datos al eje X
+                    const dataPoints = data.map(d => d[inst.name]);
                     
-                    // Crear gradiente
+                    // Crear gradiente dinámico
                     const gradient = ctx.createLinearGradient(0, 0, 0, 400);
                     gradient.addColorStop(0, inst.color + '80'); // 50% opacity
                     gradient.addColorStop(1, inst.color + '00'); // 0% opacity
@@ -96,7 +139,7 @@
                         borderColor: inst.color,
                         backgroundColor: gradient,
                         fill: true,
-                        tension: 0.3, // Curvatura
+                        tension: 0.3,
                         pointRadius: 4,
                         pointBackgroundColor: '#fff',
                         pointBorderColor: inst.color,
@@ -118,7 +161,7 @@
                             intersect: false,
                         },
                         plugins: {
-                            legend: { display: false }, // Usamos nuestra propia leyenda
+                            legend: { display: false },
                             tooltip: {
                                 backgroundColor: 'rgba(15, 23, 42, 0.9)',
                                 titleColor: '#38bdf8',
@@ -162,6 +205,7 @@
                 return () => {
                     if (chartInstanceRef.current) {
                         chartInstanceRef.current.destroy();
+                        chartInstanceRef.current = null;
                     }
                 };
             }, [data, institutions, viewMode]);
@@ -176,7 +220,7 @@
                 {
                     id: 1,
                     name: 'IES',
-                    color: '#0ea5e9', // Celeste
+                    color: '#0ea5e9',
                     data: [
                         { date: '2024-03', matricula: 30000, semestre: 522756 },
                         { date: '2025-03', matricula: 45000, semestre: 575030 },
@@ -186,7 +230,7 @@
                 {
                     id: 2,
                     name: 'Saber',
-                    color: '#1e3a8a', // Azul Oscuro
+                    color: '#1e3a8a',
                     data: [
                         { date: '2024-03', matricula: 70000, semestre: 315000 },
                         { date: '2025-03', matricula: 75000, semestre: 405000 },
@@ -196,7 +240,7 @@
                 {
                     id: 3,
                     name: 'Santo Domingo',
-                    color: '#0d9488', // Verde Azulado
+                    color: '#0d9488',
                     data: [
                         { date: '2024-03', matricula: 44000, semestre: 294000 },
                         { date: '2025-03', matricula: 74600, semestre: 449820 },
@@ -206,7 +250,7 @@
                 {
                     id: 4,
                     name: 'Siglo 21',
-                    color: '#22c55e', // Verde
+                    color: '#22c55e',
                     data: [
                         { date: '2024-03', matricula: 0, semestre: 469000 },
                         { date: '2025-03', matricula: 0, semestre: 332304 },
@@ -216,7 +260,7 @@
                 {
                     id: 5,
                     name: 'CEBA',
-                    color: '#ec4899', // Rosa
+                    color: '#ec4899',
                     data: [
                         { date: '2024-03', matricula: 60000, semestre: 270000 },
                         { date: '2025-03', matricula: 60000, semestre: 300000 },
@@ -226,7 +270,7 @@
                 {
                     id: 6,
                     name: 'Cervantes',
-                    color: '#4338ca', // Azul Oscuro Índigo
+                    color: '#4338ca',
                     data: [
                         { date: '2024-03', matricula: 0, semestre: 242550 },
                         { date: '2025-03', matricula: 34650, semestre: 346500 },
@@ -375,6 +419,10 @@
 
             const activeInst = institutions.find(i => i.id === showUpdateModal);
 
+            // Generar clave única para forzar el re-render del Chart
+            // Esto arregla el bug donde el canvas no se limpiaba bien al desfiltrar
+            const chartKey = `${viewMode}-${selectedInstIds.join('-')}-${filteredInstitutions.length}`;
+
             // --- Render ---
             return (
                 <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 p-4 md:p-8">
@@ -403,8 +451,8 @@
                     </div>
 
                     {/* Gráfico */}
-                    <section className="mb-8 p-6 rounded-3xl bg-slate-900/50 backdrop-blur-xl border border-white/10 shadow-xl">
-                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <section className="mb-8 p-6 rounded-3xl bg-slate-900/50 backdrop-blur-xl border border-white/10 shadow-xl"> 
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                            <h2 className="text-lg font-semibold text-slate-300 flex items-center gap-2 shrink-0">
                             <Icon name="activity" className="text-sky-400" size={20}/> 
                             Evolución: {viewMode === 'matricula' ? 'Matrículas' : 'Costo Semestral'}
@@ -451,7 +499,13 @@
                         </div>
 
                         <div className="relative h-[400px] w-full">
-                            <ChartComponent data={chartData} institutions={filteredInstitutions} viewMode={viewMode} />
+                            {/* key prop agregada aquí para forzar el re-montaje al cambiar filtros */}
+                            <ChartComponent 
+                                key={chartKey} 
+                                data={chartData} 
+                                institutions={filteredInstitutions} 
+                                viewMode={viewMode} 
+                            />
                         </div>
                     </section>
 
