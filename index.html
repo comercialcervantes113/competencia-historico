@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tablero de Costos Educativos</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel para JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #020617; }
+        
+        /* Glassmorphism Inputs */
+        .input-glass {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            color: white;
+            outline: none;
+            transition: all 0.2s;
+            width: 100%;
+        }
+        .input-glass:focus {
+            border-color: #38bdf8;
+            background: rgba(15, 23, 42, 0.8);
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+        }
+
+        /* Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+        
+        /* Color input fix */
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 0.5rem; }
+    </style>
+</head>
+<body class="text-white selection:bg-sky-500 selection:text-white">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect, useRef } = React;
+
+        // --- Componente de Icono (Wrapper para Lucide) ---
+        const Icon = ({ name, size = 20, className = "" }) => {
+            useEffect(() => {
+                lucide.createIcons();
+            }, [name]); // Re-run cuando cambia el nombre
+            return <i data-lucide={name} width={size} height={size} className={className}></i>;
+        };
+
+        // --- Componente de Gráfico (Wrapper para Chart.js) ---
+        const ChartComponent = ({ data, institutions, viewMode }) => {
+            const canvasRef = useRef(null);
+            const chartInstanceRef = useRef(null);
+
+            useEffect(() => {
+                if (!canvasRef.current) return;
+
+                const ctx = canvasRef.current.getContext('2d');
+
+                // Destruir instancia anterior si existe
+                if (chartInstanceRef.current) {
+                    chartInstanceRef.current.destroy();
+                }
+
+                // Preparar datasets
+                const datasets = institutions.map(inst => {
+                    // Mapear datos al eje X (fechas)
+                    const dataPoints = data.map(d => d[inst.name]); 
+                    
+                    // Crear gradiente
+                    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+                    gradient.addColorStop(0, inst.color + '80'); // 50% opacity
+                    gradient.addColorStop(1, inst.color + '00'); // 0% opacity
+
+                    return {
+                        label: inst.name,
+                        data: dataPoints,
+                        borderColor: inst.color,
+                        backgroundColor: gradient,
+                        fill: true,
+                        tension: 0.3, // Curvatura
+                        pointRadius: 4,
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: inst.color,
+                        borderWidth: 2
+                    };
+                });
+
+                chartInstanceRef.current = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.map(d => d.displayDate),
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        plugins: {
+                            legend: { display: false }, // Usamos nuestra propia leyenda
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                titleColor: '#38bdf8',
+                                bodyColor: '#e2e8f0',
+                                borderColor: 'rgba(255,255,255,0.1)',
+                                borderWidth: 1,
+                                padding: 12,
+                                displayColors: true,
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed.y !== null) {
+                                            label += new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(context.parsed.y);
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                ticks: { color: '#94a3b8' }
+                            },
+                            y: {
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                ticks: { 
+                                    color: '#94a3b8',
+                                    callback: function(value) {
+                                        return '$' + value / 1000 + 'k';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                return () => {
+                    if (chartInstanceRef.current) {
+                        chartInstanceRef.current.destroy();
+                    }
+                };
+            }, [data, institutions, viewMode]);
+
+            return <canvas ref={canvasRef} />;
+        };
+
+        // --- Componente Principal ---
+        const CostDashboard = () => {
+            // Datos Iniciales
+            const [institutions, setInstitutions] = useState([
+                {
+                    id: 1,
+                    name: 'IES',
+                    color: '#0ea5e9', // Celeste
+                    data: [
+                        { date: '2024-03', matricula: 30000, semestre: 522756 },
+                        { date: '2025-03', matricula: 45000, semestre: 575030 },
+                        { date: '2026-03', matricula: 0, semestre: 1210000 },
+                    ]
+                },
+                {
+                    id: 2,
+                    name: 'Saber',
+                    color: '#1e3a8a', // Azul Oscuro
+                    data: [
+                        { date: '2024-03', matricula: 70000, semestre: 315000 },
+                        { date: '2025-03', matricula: 75000, semestre: 405000 },
+                        { date: '2026-03', matricula: 96165, semestre: 961650 },
+                    ]
+                },
+                {
+                    id: 3,
+                    name: 'Santo Domingo',
+                    color: '#0d9488', // Verde Azulado
+                    data: [
+                        { date: '2024-03', matricula: 44000, semestre: 294000 },
+                        { date: '2025-03', matricula: 74600, semestre: 449820 },
+                        { date: '2026-03', matricula: 0, semestre: 1143600 },
+                    ]
+                },
+                {
+                    id: 4,
+                    name: 'Siglo 21',
+                    color: '#22c55e', // Verde
+                    data: [
+                        { date: '2024-03', matricula: 0, semestre: 469000 },
+                        { date: '2025-03', matricula: 0, semestre: 332304 },
+                        { date: '2026-03', matricula: 229417, semestre: 1376502 },
+                    ]
+                },
+                {
+                    id: 5,
+                    name: 'CEBA',
+                    color: '#ec4899', // Rosa
+                    data: [
+                        { date: '2024-03', matricula: 60000, semestre: 270000 },
+                        { date: '2025-03', matricula: 60000, semestre: 300000 },
+                        { date: '2026-03', matricula: 150000, semestre: 750000 },
+                    ]
+                },
+                {
+                    id: 6,
+                    name: 'Cervantes',
+                    color: '#4338ca', // Azul Oscuro Índigo
+                    data: [
+                        { date: '2024-03', matricula: 0, semestre: 242550 },
+                        { date: '2025-03', matricula: 34650, semestre: 346500 },
+                        { date: '2026-03', matricula: 62500, semestre: 760000 },
+                    ]
+                }
+            ]);
+
+            const [viewMode, setViewMode] = useState('semestre'); // 'matricula' | 'semestre'
+            
+            // Filtros
+            const [selectedInstIds, setSelectedInstIds] = useState([]); 
+            const [dateRange, setDateRange] = useState({ start: '', end: '' });
+
+            // Modales
+            const [showAddModal, setShowAddModal] = useState(false);
+            const [showUpdateModal, setShowUpdateModal] = useState(null); 
+            const [editingInstNameId, setEditingInstNameId] = useState(null);
+            
+            // Formularios
+            const [newCostDate, setNewCostDate] = useState('');
+            const [newMatricula, setNewMatricula] = useState('');
+            const [newSemestre, setNewSemestre] = useState('');
+            const [tempName, setTempName] = useState('');
+
+            // --- Lógica ---
+            const formatDateDisplay = (dateStr) => {
+                if (!dateStr) return '';
+                const [year, month] = dateStr.split('-');
+                const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                return `${months[parseInt(month) - 1]} ${year}`;
+            };
+
+            const filteredInstitutions = useMemo(() => {
+                if (selectedInstIds.length === 0) return institutions;
+                return institutions.filter(i => selectedInstIds.includes(i.id));
+            }, [institutions, selectedInstIds]);
+
+            const chartData = useMemo(() => {
+                const allDates = new Set();
+                filteredInstitutions.forEach(inst => inst.data.forEach(d => allDates.add(d.date)));
+                let sortedDates = Array.from(allDates).sort();
+
+                if (dateRange.start) sortedDates = sortedDates.filter(d => d >= dateRange.start);
+                if (dateRange.end) sortedDates = sortedDates.filter(d => d <= dateRange.end);
+
+                return sortedDates.map(date => {
+                    const entry = { name: date, displayDate: formatDateDisplay(date) };
+                    filteredInstitutions.forEach(inst => {
+                        const record = inst.data.find(d => d.date === date);
+                        entry[inst.name] = record ? record[viewMode] : null;
+                    });
+                    return entry;
+                });
+            }, [filteredInstitutions, viewMode, dateRange]);
+
+            const calculateMetrics = (data, type) => {
+                if (!data || data.length < 2) return { diff: 0, percent: 0, last: data[data.length - 1]?.[type] || 0 };
+                
+                const sortedData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+                const first = sortedData[0][type];
+                const last = sortedData[sortedData.length - 1][type];
+                
+                if (first === 0) return { diff: last, percent: last > 0 ? 100 : 0, last };
+
+                const diff = last - first;
+                const percent = ((last - first) / first) * 100;
+                
+                return { diff, percent, last };
+            };
+
+            // --- Handlers ---
+            const toggleInstFilter = (id) => {
+                setSelectedInstIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+            };
+
+            const handleAddInstitution = (name) => {
+                if(!name.trim()) return;
+                const colors = ['#0ea5e9', '#3b82f6', '#06b6d4', '#6366f1'];
+                const newInst = {
+                    id: Date.now(),
+                    name: name,
+                    color: colors[institutions.length % colors.length],
+                    data: []
+                };
+                setInstitutions([...institutions, newInst]);
+                setShowAddModal(false);
+            };
+
+            const handleUpdateColor = (id, newColor) => {
+                setInstitutions(prev => prev.map(inst => inst.id === id ? { ...inst, color: newColor } : inst));
+            };
+
+            const handleSaveCost = () => {
+                if (!newCostDate || !showUpdateModal) return;
+                setInstitutions(prev => prev.map(inst => {
+                    if (inst.id === showUpdateModal) {
+                        const existingIndex = inst.data.findIndex(d => d.date === newCostDate);
+                        let newData = [...inst.data];
+                        const newEntry = { date: newCostDate, matricula: parseFloat(newMatricula) || 0, semestre: parseFloat(newSemestre) || 0 };
+                        if (existingIndex >= 0) newData[existingIndex] = newEntry;
+                        else newData.push(newEntry);
+                        newData.sort((a, b) => new Date(a.date) - new Date(b.date));
+                        return { ...inst, data: newData };
+                    }
+                    return inst;
+                }));
+                setNewMatricula(''); setNewSemestre(''); setNewCostDate(''); setShowUpdateModal(null);
+            };
+
+            const handleEditHistoryItem = (record) => {
+                setNewCostDate(record.date);
+                setNewMatricula(record.matricula);
+                setNewSemestre(record.semestre);
+            };
+
+            const handleDeleteHistoryItem = (dateToDelete) => {
+                if (!window.confirm("¿Borrar este mes?")) return;
+                setInstitutions(prev => prev.map(inst => {
+                    if (inst.id === showUpdateModal) {
+                        return { ...inst, data: inst.data.filter(d => d.date !== dateToDelete) };
+                    }
+                    return inst;
+                }));
+            };
+
+            const handleUpdateName = () => {
+                if (!tempName.trim()) return;
+                setInstitutions(prev => prev.map(inst => inst.id === editingInstNameId ? { ...inst, name: tempName } : inst));
+                setEditingInstNameId(null);
+            };
+
+            const handleDeleteInst = (id) => {
+                if(window.confirm('¿Eliminar institución completa?')) {
+                    setInstitutions(prev => prev.filter(i => i.id !== id));
+                    setSelectedInstIds(prev => prev.filter(i => i !== id));
+                }
+            };
+
+            const clearFilters = () => {
+                setSelectedInstIds([]);
+                setDateRange({ start: '', end: '' });
+            };
+
+            const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
+
+            const activeInst = institutions.find(i => i.id === showUpdateModal);
+
+            // --- Render ---
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 p-4 md:p-8">
+                    
+                    {/* Header */}
+                    <header className="mb-8 flex flex-col md:flex-row justify-between items-center gap-4 p-6 rounded-2xl bg-white/5 backdrop-blur-lg border border-white/10 shadow-2xl">
+                        <div>
+                            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-blue-500">
+                                Tablero de Costos
+                            </h1>
+                            <p className="text-slate-400 text-sm mt-1">Comparativa de Evolución Financiera</p>
+                        </div>
+                        <button onClick={() => setShowAddModal(true)} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-semibold shadow-lg transition-all flex items-center gap-2 border border-blue-400/20">
+                            <Icon name="plus" size={18} /> Nueva Institución
+                        </button>
+                    </header>
+
+                    {/* Controles Vista */}
+                    <div className="flex justify-center mb-6 gap-4">
+                        <button onClick={() => setViewMode('matricula')} className={`flex items-center gap-2 px-6 py-2 rounded-full font-medium transition-all border ${viewMode === 'matricula' ? 'bg-sky-500 border-sky-400 text-white' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}>
+                            <Icon name="book-open" size={18}/> Matrículas
+                        </button>
+                        <button onClick={() => setViewMode('semestre')} className={`flex items-center gap-2 px-6 py-2 rounded-full font-medium transition-all border ${viewMode === 'semestre' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}>
+                            <Icon name="graduation-cap" size={18}/> Semestres
+                        </button>
+                    </div>
+
+                    {/* Gráfico */}
+                    <section className="mb-8 p-6 rounded-3xl bg-slate-900/50 backdrop-blur-xl border border-white/10 shadow-xl">
+                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                           <h2 className="text-lg font-semibold text-slate-300 flex items-center gap-2 shrink-0">
+                            <Icon name="activity" className="text-sky-400" size={20}/> 
+                            Evolución: {viewMode === 'matricula' ? 'Matrículas' : 'Costo Semestral'}
+                          </h2>
+                          
+                          {/* Barra de Filtros */}
+                          <div className="flex flex-wrap items-center gap-3 bg-black/30 p-2 rounded-xl border border-white/5 w-full md:w-auto">
+                             <div className="flex items-center gap-2 px-2">
+                                <Icon name="filter" size={14} className="text-sky-400" />
+                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ver:</span>
+                             </div>
+
+                             <div className="flex flex-wrap items-center gap-1">
+                               <button onClick={() => setSelectedInstIds([])} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all border ${selectedInstIds.length === 0 ? 'bg-white text-slate-900 border-white' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'}`}>
+                                 Todas
+                               </button>
+                               {institutions.map(inst => {
+                                 const isActive = selectedInstIds.includes(inst.id);
+                                 return (
+                                   <button key={inst.id} onClick={() => toggleInstFilter(inst.id)} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 border ${isActive ? 'text-white border-transparent shadow-lg' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'}`} style={{ backgroundColor: isActive ? inst.color : undefined }}>
+                                     {isActive && <Icon name="check" size={12} />} {inst.name}
+                                   </button>
+                                 )
+                               })}
+                             </div>
+
+                             <div className="w-px h-4 bg-white/10 mx-1 hidden md:block"></div>
+
+                             <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-2 py-1 border border-white/5">
+                                <span className="text-[10px] text-slate-400">Desde:</span>
+                                <input type="month" value={dateRange.start} onChange={(e) => setDateRange({...dateRange, start: e.target.value})} className="bg-transparent text-xs text-white focus:outline-none w-24 [color-scheme:dark] cursor-pointer" />
+                             </div>
+                             <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-2 py-1 border border-white/5">
+                                <span className="text-[10px] text-slate-400">Hasta:</span>
+                                 <input type="month" value={dateRange.end} onChange={(e) => setDateRange({...dateRange, end: e.target.value})} className="bg-transparent text-xs text-white focus:outline-none w-24 [color-scheme:dark] cursor-pointer" />
+                             </div>
+
+                             {(selectedInstIds.length > 0 || dateRange.start || dateRange.end) && (
+                                <button onClick={clearFilters} className="ml-auto md:ml-2 p-1.5 hover:bg-red-500/20 rounded-full text-slate-400 hover:text-red-400 transition-colors" title="Limpiar filtros">
+                                  <Icon name="refresh-ccw" size={14} />
+                                </button>
+                             )}
+                          </div>
+                        </div>
+
+                        <div className="relative h-[400px] w-full">
+                            <ChartComponent data={chartData} institutions={filteredInstitutions} viewMode={viewMode} />
+                        </div>
+                    </section>
+
+                    {/* Tarjetas Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {institutions.map(inst => {
+                            const matMetrics = calculateMetrics(inst.data, 'matricula');
+                            const semMetrics = calculateMetrics(inst.data, 'semestre');
+                            const isEditingName = editingInstNameId === inst.id;
+                            
+                            return (
+                                <div key={inst.id} className="relative overflow-hidden group p-6 rounded-3xl bg-slate-800/40 backdrop-blur-md border border-white/5 hover:border-sky-500/30 transition-all hover:bg-slate-800/60">
+                                    {/* Header Tarjeta */}
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div className="flex items-center gap-3 w-full">
+                                            {/* Selector Color */}
+                                            <div className="relative group/color cursor-pointer" title="Cambiar color">
+                                                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-bold text-white shadow-lg shrink-0 transition-transform hover:scale-105 overflow-hidden" style={{ backgroundColor: inst.color }}>
+                                                    {inst.name.charAt(0)}
+                                                    <div className="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                        <Icon name="palette" size={20} className="text-white drop-shadow-md" />
+                                                    </div>
+                                                </div>
+                                                <input type="color" value={inst.color} onChange={(e) => handleUpdateColor(inst.id, e.target.value)} className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10" />
+                                            </div>
+                                            
+                                            {isEditingName ? (
+                                                <div className="flex items-center gap-2 flex-1">
+                                                    <input autoFocus type="text" value={tempName} onChange={(e) => setTempName(e.target.value)} className="bg-black/40 text-white rounded px-2 py-1 text-lg font-bold w-full outline-none border border-sky-500" />
+                                                    <button onClick={handleUpdateName} className="text-emerald-400 hover:text-emerald-300"><Icon name="save" size={18}/></button>
+                                                    <button onClick={() => setEditingInstNameId(null)} className="text-red-400 hover:text-red-300"><Icon name="x" size={18}/></button>
+                                                </div>
+                                            ) : (
+                                                <div className="group/title flex items-center gap-2 cursor-pointer" onClick={() => { setEditingInstNameId(inst.id); setTempName(inst.name); }}>
+                                                    <div>
+                                                        <h3 className="font-bold text-xl text-white hover:text-sky-300 transition-colors flex items-center gap-2">
+                                                            {inst.name}
+                                                            <Icon name="pencil" size={12} className="opacity-0 group-hover:opacity-100 text-gray-400"/>
+                                                        </h3>
+                                                        <div className="flex gap-2 text-xs font-medium text-slate-400 mt-1">
+                                                            <span className="bg-white/5 px-2 py-0.5 rounded border border-white/5">{inst.data.length} meses</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        
+                                        {!isEditingName && (
+                                            <button onClick={() => handleDeleteInst(inst.id)} className="p-2 hover:bg-red-500/10 rounded-lg text-slate-600 hover:text-red-400 transition-colors">
+                                                <Icon name="trash-2" size={18} />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Métricas */}
+                                    <div className="space-y-4">
+                                        <div className="p-4 rounded-2xl bg-black/20 border border-white/5 hover:border-sky-500/30 transition-colors relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-sky-500/10 rounded-bl-full -mr-8 -mt-8 pointer-events-none"></div>
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-xs text-sky-300 font-bold flex items-center gap-1 uppercase tracking-wider"><Icon name="book-open" size={12} className="mr-1 inline"/> Matrícula</span>
+                                                <span className="text-[10px] text-slate-500 bg-black/30 px-2 py-0.5 rounded-full">{inst.data.length > 0 ? formatDateDisplay(inst.data[inst.data.length-1].date) : 'Sin datos'}</span>
+                                            </div>
+                                            <div className="flex justify-between items-end relative z-10">
+                                                <span className="text-2xl font-bold text-white">{formatCurrency(matMetrics.last)}</span>
+                                                <div className="text-right">
+                                                    <div className={`text-sm font-bold ${matMetrics.percent > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>{matMetrics.percent > 0 ? '+' : ''}{matMetrics.percent.toFixed(0)}%</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-4 rounded-2xl bg-black/20 border border-white/5 hover:border-blue-500/30 transition-colors relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-bl-full -mr-8 -mt-8 pointer-events-none"></div>
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-xs text-blue-300 font-bold flex items-center gap-1 uppercase tracking-wider"><Icon name="graduation-cap" size={12} className="mr-1 inline"/> Semestre</span>
+                                                <span className="text-[10px] text-slate-500 bg-black/30 px-2 py-0.5 rounded-full">{inst.data.length > 0 ? formatDateDisplay(inst.data[inst.data.length-1].date) : 'Sin datos'}</span>
+                                            </div>
+                                            <div className="flex justify-between items-end relative z-10">
+                                                <span className="text-2xl font-bold text-white">{formatCurrency(semMetrics.last)}</span>
+                                                <div className="text-right">
+                                                    <div className={`text-sm font-bold ${semMetrics.percent > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>{semMetrics.percent > 0 ? '+' : ''}{semMetrics.percent.toFixed(0)}%</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <button onClick={() => { setNewCostDate(''); setShowUpdateModal(inst.id); setNewMatricula(''); setNewSemestre(''); }} className="mt-6 w-full py-3 rounded-xl bg-gradient-to-r from-slate-800 to-slate-700 hover:from-sky-900 hover:to-blue-900 border border-white/5 text-sm font-semibold transition-all flex justify-center items-center gap-2 text-slate-300 hover:text-white">
+                                        <Icon name="edit-2" size={16} /> Gestionar Costos
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Modal Nueva Institución */}
+                    {showAddModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+                            <div className="w-full max-w-md bg-[#020617] border border-sky-900/30 rounded-2xl p-6 shadow-2xl relative">
+                                <button onClick={() => setShowAddModal(false)} className="absolute top-4 right-4 text-slate-500 hover:text-white"><Icon name="x" size={20} /></button>
+                                <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-white border-b border-white/5 pb-4"><Icon name="building-2" className="text-sky-400"/> Nueva Institución</h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs text-slate-400 mb-1">Nombre</label>
+                                        <input type="text" placeholder="Ej. Universidad X" className="input-glass" id="newInstName" autoFocus />
+                                    </div>
+                                    <button onClick={() => handleAddInstitution(document.getElementById('newInstName').value)} className="w-full py-3 rounded-xl font-bold text-white bg-sky-600 hover:bg-sky-500 transition-colors">Crear</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Modal Gestionar Costos */}
+                    {showUpdateModal && activeInst && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+                            <div className="w-full max-w-md bg-[#020617] border border-sky-900/30 rounded-2xl p-6 shadow-2xl relative">
+                                <button onClick={() => setShowUpdateModal(null)} className="absolute top-4 right-4 text-slate-500 hover:text-white"><Icon name="x" size={20} /></button>
+                                <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-white border-b border-white/5 pb-4">
+                                    <Icon name="activity" className="text-sky-400"/> Gestionar: {activeInst.name}
+                                </h3>
+                                
+                                <div className="grid grid-cols-1 gap-6">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-xs text-slate-400 mb-1">Fecha (Mes/Año)</label>
+                                            <input type="month" value={newCostDate} onChange={(e) => setNewCostDate(e.target.value)} className="input-glass [color-scheme:dark] text-center" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs text-sky-300 mb-1">Matrícula ($)</label>
+                                                <input type="number" value={newMatricula} onChange={(e) => setNewMatricula(e.target.value)} className="input-glass text-right" placeholder="0" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs text-blue-300 mb-1">Semestre ($)</label>
+                                                <input type="number" value={newSemestre} onChange={(e) => setNewSemestre(e.target.value)} className="input-glass text-right" placeholder="0" />
+                                            </div>
+                                        </div>
+                                        <button onClick={handleSaveCost} className="w-full py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors flex justify-center items-center gap-2"><Icon name="save" size={18}/> Guardar / Actualizar</button>
+                                    </div>
+
+                                    <div className="border-t border-white/10 pt-4 mt-2">
+                                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Icon name="history" size={12}/> Historial</h4>
+                                        <div className="max-h-[150px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                                            {activeInst.data.slice().reverse().map((record, idx) => (
+                                                <div key={idx} onClick={() => handleEditHistoryItem(record)} className={`flex justify-between items-center p-2 rounded-lg cursor-pointer transition-all border ${newCostDate === record.date ? 'bg-sky-500/20 border-sky-500/50' : 'bg-white/5 border-transparent hover:bg-white/10'}`}>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="font-mono text-xs text-sky-200 bg-sky-900/30 px-2 py-1 rounded">{formatDateDisplay(record.date)}</span>
+                                                        <div className="flex flex-col">
+                                                           <span className="text-[10px] text-slate-400">M: {formatCurrency(record.matricula)}</span>
+                                                           <span className="text-[10px] text-slate-400">S: {formatCurrency(record.semestre)}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteHistoryItem(record.date); }} className="p-1 hover:bg-red-500/20 text-slate-500 hover:text-red-400 rounded"><Icon name="trash-2" size={14}/></button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<CostDashboard />);
+    </script>
+</body>
+</html>
