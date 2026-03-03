@@ -528,13 +528,14 @@
                   <th className="p-5 font-semibold">Matrícula</th>
                   <th className="p-5 font-semibold">Alumno</th>
                   <th className="p-5 font-semibold">Carrera y Modalidad</th>
+                  <th className="p-5 font-semibold">Motivo</th>
                   <th className="p-5 font-semibold">Estado</th>
                   <th className="p-5 font-semibold text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan="5" className="p-10 text-center text-slate-500 font-medium">{emptyMsg}</td></tr>
+                  <tr><td colSpan="6" className="p-10 text-center text-slate-500 font-medium">{emptyMsg}</td></tr>
                 ) : (
                   filtered.map(c => {
                     const careerInfo = CAREERS.find(car => car.name === c.carrera) || CAREERS[0];
@@ -565,6 +566,9 @@
                             </span>
                             <span className="text-xs text-slate-500 font-bold px-1">{c.modalidad || 'No especificada'}</span>
                           </div>
+                        </td>
+                        <td className="p-5">
+                           <span className="text-sm text-slate-700 font-medium">{c.motivo}</span>
                         </td>
                         <td className="p-5">
                           <StatusBadge status={c.estado} />
