@@ -1,678 +1,1169 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tablero de Costos Educativos</title>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel para JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RetenciónApp - Gestión Estudiantil</title>
+  
+  <!-- Tailwind CSS para los estilos modernos -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Babel para compilar React en el navegador -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- SheetJS para exportar a Excel real (.xlsx) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #020617; }
-        
-        /* Glassmorphism Inputs */
-        .input-glass {
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 0.5rem;
-            padding: 0.75rem 1rem;
-            color: white;
-            outline: none;
-            transition: all 0.2s;
-            width: 100%;
-        }
-        .input-glass:focus {
-            border-color: #38bdf8;
-            background: rgba(15, 23, 42, 0.8);
-            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
-        }
-
-        /* Scrollbar */
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
-        
-        /* Color input fix */
-        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
-        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 0.5rem; }
-    </style>
+  <!-- Mapa de Importación para React y Lucide Icons (Permite usarlos en HTML sin NodeJS) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+      "lucide-react": "https://esm.sh/lucide-react@0.344.0"
+    }
+  }
+  </script>
+  
+  <style>
+    /* Animación simple para los formularios y alertas */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.3s ease-out forwards;
+    }
+    /* Scrollbar estilizado para el historial de chat */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #cbd5e1;
+      border-radius: 10px;
+    }
+  </style>
 </head>
-<body class="text-white selection:bg-sky-500 selection:text-white">
-    <div id="root"></div>
+<body class="bg-slate-50 font-sans text-slate-800">
+  
+  <div id="root"></div>
 
-    <script type="text/babel">
-        const { useState, useMemo, useEffect, useRef } = React;
+  <!-- Script principal de la Aplicación -->
+  <script type="text/babel" data-type="module">
+    import React, { useState, useEffect, useMemo, useRef } from 'react';
+    import { createRoot } from 'react-dom/client';
+    import { LayoutDashboard, Users, UserPlus, MessageCircle, Phone, Search, Filter, Save, ChevronRight, ArrowLeft, CheckCircle2, AlertCircle, XCircle, Clock, Edit2, Trash2, Archive, Database, Download, Send, User, MessageSquare } from 'lucide-react';
+    
+    // --- INTEGRACIÓN DE FIREBASE ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-        // --- Componente de Icono Corregido (Versión Robusta) ---
-        const Icon = ({ name, size = 20, className = "" }) => {
-            const iconName = useMemo(() => {
-                // Convertir kebab-case (ej: book-open) a PascalCase (ej: BookOpen)
-                return name.replace(/(^\w|-\w)/g, (clear) => clear.replace('-', '').toUpperCase());
-            }, [name]);
+    // Configuración proporcionada por el usuario
+    const firebaseConfig = {
+      apiKey: "AIzaSyBv_sA7DuRKtbDMjDZJSVgzKdMU0YPzGFM",
+      authDomain: "retencion-47a35.firebaseapp.com",
+      projectId: "retencion-47a35",
+      storageBucket: "retencion-47a35.firebasestorage.app",
+      messagingSenderId: "166511405178",
+      appId: "1:166511405178:web:cf333e09c163fd712bf3c3",
+      measurementId: "G-XKJP1X79T8"
+    };
 
-            const svgHtml = useMemo(() => {
-                if (!window.lucide || !window.lucide.icons) return '';
-                
-                const iconDef = window.lucide.icons[iconName];
-                if (!iconDef) {
-                    console.warn(`Icono no encontrado: ${iconName}`);
-                    return '';
-                }
+    const firebaseApp = initializeApp(firebaseConfig);
+    const auth = getAuth(firebaseApp);
+    const db = getFirestore(firebaseApp);
 
-                try {
-                    // Método moderno: usar createElement
-                    if (typeof window.lucide.createElement === 'function') {
-                        const element = window.lucide.createElement(iconDef);
-                        // Aplicar atributos manualmente al elemento SVG generado
-                        element.setAttribute('width', size);
-                        element.setAttribute('height', size);
-                        if (className) {
-                            // Combinar clases existentes con la nueva (si las hay)
-                            const existingClass = element.getAttribute('class') || '';
-                            element.setAttribute('class', `${existingClass} ${className}`.trim());
-                        }
-                        return element.outerHTML;
-                    }
-                } catch (e) {
-                    console.error("Error generando icono:", e);
-                    return '';
-                }
-                return '';
-            }, [iconName, size, className]);
+    // --- CONFIGURACIÓN Y CONSTANTES ---
+    const CAREERS = [
+      { name: 'Administración de Empresas', hex: '#8DA248', modalities: ['Presencial', 'Semipresencial'] },
+      { name: 'Recursos Humanos', hex: '#B388C2', modalities: ['Presencial', 'Semipresencial', 'Distancia'] },
+      { name: 'Marketing', hex: '#FA5D0F', modalities: ['Semipresencial', 'Distancia'] },
+      { name: 'Analista de Sistemas', hex: '#00B1E1', modalities: ['Presencial', 'Semipresencial'] },
+      { name: 'Desarrollo Web', hex: '#A8927D', modalities: ['Semipresencial'] },
+      { name: 'Inteligencia Artificial', hex: '#2D4693', modalities: ['Semipresencial'] },
+      { name: 'Higiene y Seguridad', hex: '#F4C01E', modalities: ['Presencial', 'Semipresencial'] },
+      { name: 'Gestión Inmobiliaria', hex: '#BB242A', modalities: ['Presencial', 'Semipresencial', 'Distancia'] }
+    ];
 
-            if (!svgHtml) return <span style={{ width: size, height: size, display: 'inline-block' }} />;
+    const MODALITY_RULES = {
+      'Presencial': '3 o 4 días de cursado. Aula híbrida (flexible). Examen final presencial en la institución.',
+      'Semipresencial': '1 vez por semana. Aula híbrida (flexible). Examen final sincrónico con profesor.',
+      'Distancia': 'Contenidos en autogestión/Teams (grabados). Examen sincrónico. Tutorías y 3 encuentros opcionales. Chat con respuesta en 24hs.'
+    };
 
-            return (
-                <span 
-                    dangerouslySetInnerHTML={{ __html: svgHtml }} 
-                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+    const STATUSES = ['Solicitud de baja', 'En seguimiento', 'Retenido', 'Baja definitiva'];
+    const REASONS = ['Económico', 'Falta de tiempo / Horarios', 'Laboral', 'Académico', 'Personal / Salud', 'Otro'];
+    const STUDENT_TYPES = ['Ingresante', 'No inicio', 'No continua'];
+
+    // --- COMPONENTE PRINCIPAL (APP) ---
+    function App() {
+      const [cases, setCases] = useState([]);
+      const [currentView, setCurrentView] = useState('list'); 
+      const [selectedCaseId, setSelectedCaseId] = useState(null);
+      const [user, setUser] = useState(null);
+      const [loading, setLoading] = useState(true);
+
+      // 1. Iniciar sesión anónima en Firebase
+      useEffect(() => {
+        const initAuth = async () => {
+          try {
+            await signInAnonymously(auth);
+          } catch (error) {
+            console.error("Error al iniciar sesión anónima:", error);
+          }
+        };
+        initAuth();
+        const unsubscribe = onAuthStateChanged(auth, setUser);
+        return () => unsubscribe();
+      }, []);
+
+      // 2. Escuchar datos en tiempo real desde Firestore
+      useEffect(() => {
+        if (!user) return; // Esperar a que esté autenticado
+
+        const casesRef = collection(db, 'casos');
+        const unsubscribe = onSnapshot(casesRef, (snapshot) => {
+          const data = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          
+          // Ordenar del más reciente al más antiguo lógicamente
+          data.sort((a, b) => {
+            const numA = parseInt((a.caseNumber || '').split('-')[1] || '0');
+            const numB = parseInt((b.caseNumber || '').split('-')[1] || '0');
+            return numB - numA;
+          });
+
+          setCases(data);
+          setLoading(false);
+        }, (error) => {
+          console.error("Error al sincronizar con Firebase:", error);
+          setLoading(false);
+        });
+
+        return () => unsubscribe();
+      }, [user]);
+
+      const navigateTo = (view, caseId = null) => {
+        setCurrentView(view);
+        setSelectedCaseId(caseId);
+      };
+
+      const handleSaveCase = async (newCase) => {
+        try {
+          if (newCase.id) {
+            // Actualizar caso existente
+            const docRef = doc(db, 'casos', newCase.id);
+            const { id, ...caseData } = newCase;
+            await updateDoc(docRef, caseData);
+          } else {
+            // Crear caso nuevo
+            const casesRef = collection(db, 'casos');
+            const currentCount = cases.length + 1;
+            const caseNumber = `CASO-${String(currentCount).padStart(3, '0')}`;
+            
+            // Si el caso es nuevo y tiene observación inicial, crear la primera interacción
+            let interacciones = [];
+            if (newCase.observacion) {
+              interacciones.push({
+                id: Date.now().toString(),
+                fecha: new Date().toISOString(),
+                texto: newCase.observacion,
+                rol: 'sistema' // 'sistema', 'asesor', 'alumno'
+              });
+            }
+
+            await addDoc(casesRef, { 
+              ...newCase, 
+              caseNumber, 
+              fecha: new Date().toISOString().split('T')[0],
+              interacciones: interacciones
+            });
+          }
+          navigateTo('list');
+        } catch (error) {
+          console.error("Error al guardar en Firebase:", error);
+        }
+      };
+
+      const handleDeleteCase = async (id) => {
+        try {
+          const deletedCase = cases.find(c => c.id === id);
+          const docRef = doc(db, 'casos', id);
+          await deleteDoc(docRef);
+          
+          if (deletedCase && (deletedCase.estado === 'Retenido' || deletedCase.estado === 'Baja definitiva')) {
+            navigateTo('archived');
+          } else {
+            navigateTo('list');
+          }
+        } catch (error) {
+          console.error("Error al eliminar de Firebase:", error);
+        }
+      };
+
+      // Exportar a Excel Real (.xlsx)
+      const handleExportExcel = () => {
+        const dataToExport = cases.map(c => {
+          // Formatear el historial de interacciones
+          let historialTxt = '';
+          if (c.interacciones && c.interacciones.length > 0) {
+            historialTxt = c.interacciones.map(i => {
+              const d = new Date(i.fecha);
+              const dateStr = `${d.getDate()}/${d.getMonth()+1} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+              const rol = i.rol === 'asesor' ? 'OFERTA/ASESOR' : i.rol === 'alumno' ? 'RESPUESTA ALUMNO' : 'MOTIVO INICIAL';
+              return `[${dateStr}] ${rol}: ${i.texto}`;
+            }).join(' || ');
+          } else {
+            historialTxt = c.observacion || '';
+          }
+
+          return {
+            'Nº Caso': c.caseNumber,
+            'Matrícula': c.matricula,
+            'Nombre': c.nombre,
+            'Teléfono': c.telefono,
+            'Carrera': c.carrera,
+            'Modalidad': c.modalidad || 'No especificada',
+            'Tipo Alumno': c.tipoAlumno && c.tipoAlumno.length > 0 ? c.tipoAlumno.join(', ') : 'No especificado',
+            'Motivo': c.motivo,
+            'Estado': c.estado,
+            'Empresa Amiga': c.empresaAmiga ? 'Sí' : 'No',
+            'Nombre Empresa': c.nombreEmpresa || '-',
+            'Historial de Negociación': historialTxt,
+            'Fecha de Registro': c.fecha
+          };
+        });
+
+        const worksheet = window.XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = window.XLSX.utils.book_new();
+        window.XLSX.utils.book_append_sheet(workbook, worksheet, "Casos Retención");
+        window.XLSX.writeFile(workbook, `Reporte_Retencion_${new Date().toISOString().split('T')[0]}.xlsx`);
+      };
+
+      if (loading) {
+        return (
+          <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-indigo-600 font-bold animate-pulse">Conectando con la base de datos...</p>
+            </div>
+          </div>
+        );
+      }
+
+      // Separar activos de archivados
+      const activeCases = cases.filter(c => c.estado !== 'Retenido' && c.estado !== 'Baja definitiva');
+      const archivedCases = cases.filter(c => c.estado === 'Retenido' || c.estado === 'Baja definitiva');
+
+      const MAX_DB_USAGE = 5000;
+      const dbUsagePercent = Math.min((cases.length / MAX_DB_USAGE) * 100, 100);
+
+      return (
+        <div className="flex h-screen w-full overflow-hidden">
+          {/* Sidebar */}
+          <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-10 flex-shrink-0">
+            <div className="p-6">
+              <h1 className="text-xl font-bold text-white flex items-center gap-2">
+                <Users className="text-indigo-400" />
+                <span>RetenciónApp</span>
+              </h1>
+              <p className="text-xs text-slate-400 mt-1">Gestión de Bajas Estudiantiles</p>
+            </div>
+            
+            <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto custom-scrollbar">
+              <button 
+                onClick={() => navigateTo('list')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${currentView === 'list' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}
+              >
+                <Users size={20} /> Casos Activos
+                {activeCases.length > 0 && <span className="ml-auto bg-indigo-800 text-xs px-2 py-0.5 rounded-full">{activeCases.length}</span>}
+              </button>
+              <button 
+                onClick={() => navigateTo('archived')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${currentView === 'archived' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}
+              >
+                <Archive size={20} /> Archivados
+                {archivedCases.length > 0 && <span className="ml-auto bg-slate-800 text-xs px-2 py-0.5 rounded-full">{archivedCases.length}</span>}
+              </button>
+              <button 
+                onClick={() => navigateTo('new')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${currentView === 'new' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}
+              >
+                <UserPlus size={20} /> Registrar Caso
+              </button>
+              <button 
+                onClick={() => navigateTo('dashboard')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${currentView === 'dashboard' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}
+              >
+                <LayoutDashboard size={20} /> Dashboard
+              </button>
+              
+              <div className="pt-6 pb-2">
+                <div className="border-t border-slate-700/50 mb-4"></div>
+                <button 
+                  onClick={handleExportExcel}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-colors bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white border border-emerald-600/30"
+                >
+                  <Download size={18} /> Descargar Excel
+                </button>
+              </div>
+            </nav>
+
+            <div className="p-4 mt-auto border-t border-slate-800">
+              <div className="bg-slate-800/50 p-4 rounded-xl shadow-inner">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5"><Database size={14}/> Uso Base de Datos</span>
+                  <span className="text-xs text-slate-300 font-mono font-bold">{cases.length} <span className="text-slate-500 font-normal">/ {MAX_DB_USAGE}</span></span>
+                </div>
+                <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-700">
+                  <div 
+                    className={`h-full transition-all duration-1000 ${dbUsagePercent > 85 ? 'bg-red-500' : dbUsagePercent > 60 ? 'bg-amber-500' : 'bg-emerald-500'}`} 
+                    style={{ width: `${dbUsagePercent}%` }}
+                  ></div>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-2 leading-tight">Mide la cantidad de registros en la capa gratuita en la nube.</p>
+              </div>
+            </div>
+          </aside>
+
+          {/* Main Content */}
+          <main className="flex-1 overflow-y-auto relative bg-slate-50 w-full h-full custom-scrollbar">
+            <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 p-6 flex justify-between items-center sticky top-0 z-20 shadow-sm">
+              <h2 className="text-2xl font-semibold text-slate-800 capitalize">
+                {currentView === 'dashboard' && 'Panel de Control Global'}
+                {currentView === 'list' && 'Directorio de Casos Activos'}
+                {currentView === 'archived' && 'Historial de Casos Archivados'}
+                {currentView === 'new' && (selectedCaseId ? 'Editar Caso' : 'Registrar Nuevo Caso')}
+                {currentView === 'detail' && 'Detalle y Negociación del Caso'}
+              </h2>
+            </header>
+
+            <div className="p-8 relative z-10">
+              {currentView === 'dashboard' && <Dashboard cases={cases} />}
+              {currentView === 'list' && <CaseList cases={activeCases} onSelect={(id) => navigateTo('detail', id)} title="Casos Activos (En Gestión)" emptyMsg="No hay casos activos. Todos los registros están archivados o no hay datos." />}
+              {currentView === 'archived' && <CaseList cases={archivedCases} onSelect={(id) => navigateTo('detail', id)} title="Casos Cerrados (Retenidos y Bajas)" emptyMsg="Aún no hay casos archivados." />}
+              {currentView === 'new' && (
+                <CaseForm 
+                  caseToEdit={selectedCaseId ? cases.find(c => c.id === selectedCaseId) : null} 
+                  onSave={handleSaveCase} 
+                  onCancel={() => navigateTo('list')} 
                 />
-            );
+              )}
+              {currentView === 'detail' && (
+                <CaseDetail 
+                  caseData={cases.find(c => c.id === selectedCaseId)} 
+                  onBack={() => {
+                    const c = cases.find(c => c.id === selectedCaseId);
+                    if (c && (c.estado === 'Retenido' || c.estado === 'Baja definitiva')) navigateTo('archived');
+                    else navigateTo('list');
+                  }} 
+                  onUpdate={async (updatedCase) => {
+                    // Update immediate in firebase for Detail View actions
+                    const docRef = doc(db, 'casos', updatedCase.id);
+                    const { id, ...caseData } = updatedCase;
+                    await updateDoc(docRef, caseData);
+                  }}
+                  onEdit={(id) => navigateTo('new', id)}
+                  onDelete={handleDeleteCase}
+                />
+              )}
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    // --- DASHBOARD COMPONENT ---
+    function Dashboard({ cases }) {
+      const [filterCareer, setFilterCareer] = useState('');
+      const [filterReason, setFilterReason] = useState('');
+      const [filterStatus, setFilterStatus] = useState('');
+
+      const filteredCases = useMemo(() => {
+        return cases.filter(c => {
+          if (filterCareer && c.carrera !== filterCareer) return false;
+          if (filterReason && c.motivo !== filterReason) return false;
+          if (filterStatus && c.estado !== filterStatus) return false;
+          return true;
+        });
+      }, [cases, filterCareer, filterReason, filterStatus]);
+
+      const total = filteredCases.length;
+      const retained = filteredCases.filter(c => c.estado === 'Retenido').length;
+      const dropped = filteredCases.filter(c => c.estado === 'Baja definitiva').length;
+      const inProgress = filteredCases.filter(c => c.estado === 'En seguimiento' || c.estado === 'Solicitud de baja').length;
+
+      const retainedPct = total === 0 ? 0 : Math.round((retained / total) * 100);
+      const droppedPct = total === 0 ? 0 : Math.round((dropped / total) * 100);
+      const inProgressPct = total === 0 ? 0 : Math.round((inProgress / total) * 100);
+
+      return (
+        <div className="space-y-6 relative z-0">
+          <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 rounded-2xl pointer-events-none">
+            <div className="absolute -top-10 -left-10 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-pulse"></div>
+            <div className="absolute top-10 -right-10 w-72 h-72 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-pulse" style={{ animationDelay: '2s' }}></div>
+            <div className="absolute -bottom-10 left-1/3 w-72 h-72 bg-pink-200 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-pulse" style={{ animationDelay: '4s' }}></div>
+          </div>
+
+          <div className="bg-white/50 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-white/60 flex flex-wrap gap-4 items-center">
+            <Filter className="text-indigo-600" size={20} />
+            <span className="font-semibold text-slate-700">Filtros (Globales):</span>
+            <select className="bg-white/60 backdrop-blur-sm border border-white/50 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-medium" value={filterCareer} onChange={e => setFilterCareer(e.target.value)}>
+              <option value="">Todas las Carreras</option>
+              {CAREERS.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+            </select>
+            <select className="bg-white/60 backdrop-blur-sm border border-white/50 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-medium" value={filterReason} onChange={e => setFilterReason(e.target.value)}>
+              <option value="">Todos los Motivos</option>
+              {REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <select className="bg-white/60 backdrop-blur-sm border border-white/50 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-medium" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+              <option value="">Todos los Estados</option>
+              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="bg-white/60 backdrop-blur-md p-6 rounded-3xl shadow-lg border border-white/80 flex flex-col justify-center transform transition-all hover:-translate-y-1">
+              <p className="text-xs text-slate-500 font-bold mb-2 uppercase tracking-widest">Total de Casos</p>
+              <p className="text-5xl font-extrabold text-slate-800 bg-clip-text text-transparent bg-gradient-to-br from-slate-700 to-slate-900">{total}</p>
+            </div>
+            
+            <div className="bg-emerald-50/60 backdrop-blur-md p-6 rounded-3xl shadow-lg border border-emerald-100/80 relative overflow-hidden transform transition-all hover:-translate-y-1">
+              <div className="absolute -right-6 -top-6 opacity-20 text-emerald-500"><CheckCircle2 size={120} /></div>
+              <p className="text-xs text-emerald-700 font-bold mb-2 uppercase tracking-widest relative z-10">Retenidos</p>
+              <div className="flex items-end gap-2 relative z-10">
+                <p className="text-5xl font-extrabold text-emerald-600">{retained}</p>
+                <p className="text-xl font-bold text-emerald-500 mb-1">({retainedPct}%)</p>
+              </div>
+            </div>
+
+            <div className="bg-red-50/60 backdrop-blur-md p-6 rounded-3xl shadow-lg border border-red-100/80 relative overflow-hidden transform transition-all hover:-translate-y-1">
+              <div className="absolute -right-6 -top-6 opacity-20 text-red-500"><XCircle size={120} /></div>
+              <p className="text-xs text-red-700 font-bold mb-2 uppercase tracking-widest relative z-10">Bajas</p>
+              <div className="flex items-end gap-2 relative z-10">
+                <p className="text-5xl font-extrabold text-red-600">{dropped}</p>
+                <p className="text-xl font-bold text-red-500 mb-1">({droppedPct}%)</p>
+              </div>
+            </div>
+
+            <div className="bg-indigo-50/60 backdrop-blur-md p-6 rounded-3xl shadow-lg border border-indigo-100/80 relative overflow-hidden transform transition-all hover:-translate-y-1">
+              <div className="absolute -right-6 -top-6 opacity-20 text-indigo-500"><Clock size={120} /></div>
+              <p className="text-xs text-indigo-700 font-bold mb-2 uppercase tracking-widest relative z-10">En Gestión</p>
+              <div className="flex items-end gap-2 relative z-10">
+                <p className="text-5xl font-extrabold text-indigo-600">{inProgress}</p>
+                <p className="text-xl font-bold text-indigo-500 mb-1">({inProgressPct}%)</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white/60 backdrop-blur-md p-8 rounded-3xl shadow-lg border border-white/80">
+            <h3 className="font-bold text-slate-800 mb-8 text-lg">Distribución de Resultados Globales</h3>
+            <div className="relative w-full h-12 bg-slate-200/50 rounded-2xl overflow-hidden flex shadow-inner backdrop-blur-sm">
+              {total > 0 ? (
+                <>
+                  <div style={{ width: `${retainedPct}%` }} className="bg-gradient-to-r from-emerald-400 to-emerald-500 h-full flex items-center justify-center text-sm text-white font-bold transition-all duration-700 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)]">
+                    {retainedPct > 8 && `${retainedPct}%`}
+                  </div>
+                  <div style={{ width: `${inProgressPct}%` }} className="bg-gradient-to-r from-indigo-300 to-indigo-400 h-full flex items-center justify-center text-sm text-white font-bold transition-all duration-700 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)] border-l border-white/20">
+                    {inProgressPct > 8 && `${inProgressPct}%`}
+                  </div>
+                  <div style={{ width: `${droppedPct}%` }} className="bg-gradient-to-r from-red-400 to-red-500 h-full flex items-center justify-center text-sm text-white font-bold transition-all duration-700 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)] border-l border-white/20">
+                    {droppedPct > 8 && `${droppedPct}%`}
+                  </div>
+                </>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-sm text-slate-500 font-medium">No hay datos suficientes</div>
+              )}
+            </div>
+            
+            <div className="flex gap-6 mt-6 justify-center">
+              <div className="flex items-center gap-2 bg-emerald-50/80 px-4 py-2 rounded-xl border border-emerald-100 shadow-sm"><span className="w-4 h-4 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500 shadow-sm"></span> <span className="text-sm font-bold text-emerald-800">Retenidos</span></div>
+              <div className="flex items-center gap-2 bg-indigo-50/80 px-4 py-2 rounded-xl border border-indigo-100 shadow-sm"><span className="w-4 h-4 rounded-full bg-gradient-to-r from-indigo-300 to-indigo-400 shadow-sm"></span> <span className="text-sm font-bold text-indigo-800">En Gestión</span></div>
+              <div className="flex items-center gap-2 bg-red-50/80 px-4 py-2 rounded-xl border border-red-100 shadow-sm"><span className="w-4 h-4 rounded-full bg-gradient-to-r from-red-400 to-red-500 shadow-sm"></span> <span className="text-sm font-bold text-red-800">Bajas</span></div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- CASE LIST COMPONENT ---
+    function CaseList({ cases, onSelect, title, emptyMsg }) {
+      const [searchTerm, setSearchTerm] = useState('');
+
+      const filtered = cases.filter(c => 
+        c.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        c.matricula.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.caseNumber && c.caseNumber.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+
+      const getInitials = (name) => {
+        return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+      };
+
+      return (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in">
+          <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white">
+            <h3 className="font-bold text-lg text-slate-800">{title}</h3>
+            <div className="relative w-80">
+              <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+              <input 
+                type="text"
+                placeholder="Buscar por nombre, matrícula..."
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-100">
+                  <th className="p-5 font-semibold">Matrícula</th>
+                  <th className="p-5 font-semibold">Alumno</th>
+                  <th className="p-5 font-semibold">Carrera y Modalidad</th>
+                  <th className="p-5 font-semibold">Estado</th>
+                  <th className="p-5 font-semibold text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.length === 0 ? (
+                  <tr><td colSpan="5" className="p-10 text-center text-slate-500 font-medium">{emptyMsg}</td></tr>
+                ) : (
+                  filtered.map(c => {
+                    const careerInfo = CAREERS.find(car => car.name === c.carrera) || CAREERS[0];
+                    return (
+                      <tr key={c.id} className="hover:bg-slate-50/80 transition-all cursor-pointer group" onClick={() => onSelect(c.id)}>
+                        <td className="p-5">
+                          <div className="font-mono text-sm font-bold text-indigo-600 bg-indigo-50 inline-block px-2.5 py-1 rounded-md">{c.matricula}</div>
+                        </td>
+                        <td className="p-5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-inner flex-shrink-0" style={{ backgroundColor: careerInfo.hex }}>
+                              {getInitials(c.nombre)}
+                            </div>
+                            <div>
+                              <div className="font-bold text-slate-800">{c.nombre}</div>
+                              <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5"><Phone size={10} /> {c.telefono}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-5">
+                          <div className="flex flex-col items-start gap-1">
+                            <span 
+                              style={{ backgroundColor: careerInfo.hex + '1A', color: careerInfo.hex, borderColor: careerInfo.hex + '40' }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border"
+                            >
+                              <span style={{ backgroundColor: careerInfo.hex }} className="w-1.5 h-1.5 rounded-full"></span>
+                              {c.carrera}
+                            </span>
+                            <span className="text-xs text-slate-500 font-bold px-1">{c.modalidad || 'No especificada'}</span>
+                          </div>
+                        </td>
+                        <td className="p-5">
+                          <StatusBadge status={c.estado} />
+                        </td>
+                        <td className="p-5 text-right">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); onSelect(c.id); }}
+                            className="p-2 text-slate-400 group-hover:text-indigo-600 group-hover:bg-indigo-50 rounded-xl transition-all inline-flex items-center gap-1 font-semibold text-sm"
+                          >
+                            Ver / Gestionar <ChevronRight size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    function StatusBadge({ status }) {
+      let styles = "bg-slate-100 text-slate-700";
+      if (status === 'Retenido') styles = "bg-emerald-100 text-emerald-800 border border-emerald-200";
+      if (status === 'En seguimiento') styles = "bg-indigo-100 text-indigo-800 border border-indigo-200";
+      if (status === 'Solicitud de baja') styles = "bg-amber-100 text-amber-800 border border-amber-200";
+      if (status === 'Baja definitiva') styles = "bg-red-100 text-red-800 border border-red-200";
+
+      return <span className={`px-2.5 py-1.5 rounded-md text-xs font-bold shadow-sm ${styles}`}>{status}</span>;
+    }
+
+    // --- CASE FORM COMPONENT ---
+    function CaseForm({ caseToEdit = null, onSave, onCancel }) {
+      const [formData, setFormData] = useState(caseToEdit || {
+        matricula: '', nombre: '', telefono: '', carrera: CAREERS[0].name, modalidad: CAREERS[0].modalities[0], tipoAlumno: [], estado: 'Solicitud de baja', motivo: REASONS[0], empresaAmiga: false, nombreEmpresa: '', observacion: ''
+      });
+
+      useEffect(() => {
+        if (caseToEdit) setFormData({
+          ...caseToEdit,
+          tipoAlumno: caseToEdit.tipoAlumno || []
+        });
+      }, [caseToEdit]);
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(formData);
+      };
+
+      const handleCareerChange = (e) => {
+        const newCareerName = e.target.value;
+        const newCareerObj = CAREERS.find(c => c.name === newCareerName);
+        let currentModality = formData.modalidad;
+
+        if (!newCareerObj.modalities.includes(currentModality)) {
+          currentModality = newCareerObj.modalities[0];
+        }
+
+        setFormData({...formData, carrera: newCareerName, modalidad: currentModality});
+      };
+
+      const handleTipoAlumnoChange = (tipo) => {
+        setFormData(prev => {
+          const newTipos = prev.tipoAlumno.includes(tipo)
+            ? prev.tipoAlumno.filter(t => t !== tipo)
+            : [...prev.tipoAlumno, tipo];
+          return { ...prev, tipoAlumno: newTipos };
+        });
+      };
+
+      const careerInfo = CAREERS.find(c => c.name === formData.carrera) || CAREERS[0];
+      
+      return (
+        <div 
+          className="max-w-3xl mx-auto bg-white rounded-2xl shadow-md border-t-4 p-8 transition-all duration-300 animate-fade-in"
+          style={{ borderTopColor: careerInfo.hex }}
+        >
+          <div className="flex items-center gap-3 mb-6 border-b pb-4 border-slate-100">
+            <div className="p-2.5 rounded-xl" style={{ backgroundColor: careerInfo.hex + '20', color: careerInfo.hex }}>
+              {caseToEdit ? <Edit2 size={24} /> : <UserPlus size={24} />}
+            </div>
+            <h3 className="text-xl font-bold text-slate-800">
+              {caseToEdit ? 'Editar Caso Existente' : 'Datos del Alumno y Motivo de Baja'}
+            </h3>
+          </div>
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Matrícula</label>
+                <input required type="text" className="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 outline-none transition-shadow"
+                  style={{ '--tw-ring-color': careerInfo.hex }}
+                  value={formData.matricula} onChange={e => setFormData({...formData, matricula: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Nombre y Apellido</label>
+                <input required type="text" className="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 outline-none transition-shadow"
+                  style={{ '--tw-ring-color': careerInfo.hex }}
+                  value={formData.nombre} onChange={e => setFormData({...formData, nombre: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Teléfono (WhatsApp)</label>
+                <input required type="text" placeholder="Ej: 5493512345678" className="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 outline-none transition-shadow"
+                  style={{ '--tw-ring-color': careerInfo.hex }}
+                  value={formData.telefono} onChange={e => setFormData({...formData, telefono: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Carrera</label>
+                <select className="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 outline-none transition-shadow"
+                  style={{ '--tw-ring-color': careerInfo.hex }}
+                  value={formData.carrera} onChange={handleCareerChange}>
+                  {CAREERS.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Modalidad Actual</label>
+                <select className="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 outline-none transition-shadow"
+                  style={{ '--tw-ring-color': careerInfo.hex }}
+                  value={formData.modalidad} onChange={e => setFormData({...formData, modalidad: e.target.value})}>
+                  {careerInfo.modalities.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Motivo principal</label>
+                <select className="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 outline-none transition-shadow"
+                  style={{ '--tw-ring-color': careerInfo.hex }}
+                  value={formData.motivo} onChange={e => setFormData({...formData, motivo: e.target.value})}>
+                  {REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Estado del caso</label>
+                <select className="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 outline-none transition-shadow"
+                  style={{ '--tw-ring-color': careerInfo.hex }}
+                  value={formData.estado} onChange={e => setFormData({...formData, estado: e.target.value})}>
+                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Nuevo bloque: Etiquetas del Alumno (Tipo y Empresa) */}
+            <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-4">
+              <h4 className="font-bold text-slate-700 text-sm border-b border-slate-200 pb-2">Perfil del Alumno (Múltiple Selección)</h4>
+              
+              <div className="flex flex-wrap gap-4">
+                {STUDENT_TYPES.map(tipo => (
+                  <label key={tipo} className="flex items-center gap-2 cursor-pointer bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm hover:border-indigo-300 transition-colors">
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 rounded border-gray-300 focus:ring-2"
+                      style={{ accentColor: careerInfo.hex }}
+                      checked={formData.tipoAlumno && formData.tipoAlumno.includes(tipo)}
+                      onChange={() => handleTipoAlumnoChange(tipo)}
+                    />
+                    <span className="text-sm font-bold text-slate-700">{tipo}</span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="pt-2">
+                <label className="flex items-center gap-2 cursor-pointer bg-indigo-50/50 px-3 py-2 rounded-lg border border-indigo-100 transition-colors w-fit">
+                  <input type="checkbox" className="w-4 h-4 rounded border-gray-300 focus:ring-2"
+                    style={{ accentColor: careerInfo.hex }}
+                    checked={formData.empresaAmiga} onChange={e => setFormData({...formData, empresaAmiga: e.target.checked, nombreEmpresa: !e.target.checked ? '' : formData.nombreEmpresa})} />
+                  <span className="text-sm font-bold text-indigo-900">
+                    Posee Convenio "Empresa Amiga" (Ya tiene 20% desc.)
+                  </span>
+                </label>
+                
+                {formData.empresaAmiga && (
+                  <div className="mt-3 ml-1 animate-fade-in w-full md:w-1/2">
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Nombre de la Empresa</label>
+                    <input required type="text" placeholder="Ej: Naranja X, Apex..." className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 outline-none text-sm transition-shadow shadow-sm"
+                      style={{ '--tw-ring-color': careerInfo.hex }}
+                      value={formData.nombreEmpresa} onChange={e => setFormData({...formData, nombreEmpresa: e.target.value})} />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Detalle del Motivo / Situación Inicial</label>
+              <textarea required rows={3} className="w-full border border-slate-300 rounded-xl p-3 focus:ring-2 outline-none transition-shadow"
+                style={{ '--tw-ring-color': careerInfo.hex }}
+                placeholder="Detalla cómo inició el reclamo o la situación particular..."
+                value={formData.observacion} onChange={e => setFormData({...formData, observacion: e.target.value})}></textarea>
+                <p className="text-xs text-slate-500 mt-1">* Nota: Podrás añadir ofertas y respuestas posteriores en el panel de detalle del caso.</p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <button type="button" onClick={onCancel} className="px-5 py-2.5 border border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors">
+                Cancelar
+              </button>
+              <button 
+                type="submit" 
+                className="px-5 py-2.5 text-white font-bold rounded-xl flex items-center gap-2 transition-all hover:opacity-90 shadow-sm"
+                style={{ backgroundColor: careerInfo.hex }}
+              >
+                <Save size={18} /> Guardar Caso
+              </button>
+            </div>
+          </form>
+        </div>
+      );
+    }
+
+    // --- CASE DETAIL COMPONENT ---
+    function CaseDetail({ caseData, onBack, onUpdate, onEdit, onDelete }) {
+      const [showDeleteModal, setShowDeleteModal] = useState(false);
+      const [newInteraction, setNewInteraction] = useState('');
+      const chatContainerRef = useRef(null);
+
+      if (!caseData) return null;
+
+      const careerInfo = CAREERS.find(c => c.name === caseData.carrera) || CAREERS[0];
+      const cleanPhone = caseData.telefono.replace(/\D/g, '');
+      
+      const isTimeIssue = caseData.motivo.includes('tiempo') || caseData.motivo.includes('Horarios');
+      const isEconIssue = caseData.motivo.includes('Económico');
+
+      const currentDiscount = caseData.empresaAmiga ? 20 : 0;
+      const extraBaseOffer = caseData.empresaAmiga ? 10 : 20;
+      const totalBaseDiscount = currentDiscount + extraBaseOffer; 
+      const extraProofOffer = caseData.empresaAmiga ? 20 : 40;
+      const totalProofDiscount = currentDiscount + extraProofOffer; 
+
+      // Auto-scroll chat al final
+      useEffect(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+      }, [caseData.interacciones]);
+
+      const updateStatus = (newStatus) => {
+        onUpdate({ ...caseData, estado: newStatus });
+      };
+
+      const handleAddInteraction = (rol) => {
+        if (!newInteraction.trim()) return;
+        
+        const interaccion = {
+          id: Date.now().toString(),
+          fecha: new Date().toISOString(),
+          texto: newInteraction.trim(),
+          rol: rol
         };
 
-        // --- Componente de Gráfico (Wrapper para Chart.js) ---
-        const ChartComponent = ({ data, institutions, viewMode }) => {
-            const canvasRef = useRef(null);
-            const chartInstanceRef = useRef(null);
+        const currentInteracciones = caseData.interacciones || [];
+        
+        // Si no tiene interacciones pero tiene observación inicial, crearla primero para mantener la historia
+        if (currentInteracciones.length === 0 && caseData.observacion) {
+          currentInteracciones.push({
+            id: 'initial',
+            fecha: caseData.fecha + 'T00:00:00.000Z',
+            texto: caseData.observacion,
+            rol: 'sistema'
+          });
+        }
 
-            useEffect(() => {
-                if (!canvasRef.current) return;
+        onUpdate({
+          ...caseData,
+          interacciones: [...currentInteracciones, interaccion]
+        });
 
-                const ctx = canvasRef.current.getContext('2d');
+        setNewInteraction('');
+      };
 
-                // 1. Destrucción segura de la instancia anterior
-                if (chartInstanceRef.current) {
-                    chartInstanceRef.current.destroy();
-                    chartInstanceRef.current = null;
-                }
+      // Helper para renderizar historial de forma segura, respetando datos antiguos
+      const interacciones = caseData.interacciones || (caseData.observacion ? [{id: 'old', fecha: caseData.fecha, texto: caseData.observacion, rol: 'sistema'}] : []);
 
-                // 2. Limpieza explícita del canvas para evitar "fantasmas" visuales
-                ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      return (
+        <div className="space-y-6 relative animate-fade-in">
+          
+          {/* --- MODAL CONFIRMACIÓN ELIMINAR --- */}
+          {showDeleteModal && (
+            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-fade-in border border-slate-100">
+                <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-6 mx-auto">
+                  <Trash2 size={32} />
+                </div>
+                <h3 className="text-xl font-bold text-center text-slate-800 mb-2">¿Eliminar este caso?</h3>
+                <p className="text-center text-slate-500 font-medium mb-8">Esta acción es permanente y se borrará de Firebase.</p>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setShowDeleteModal(false)}
+                    className="flex-1 py-3 px-4 font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={() => onDelete(caseData.id)}
+                    className="flex-1 py-3 px-4 font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors shadow-sm"
+                  >
+                    Sí, eliminar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
-                // Preparar datasets
-                const datasets = institutions.map(inst => {
-                    // Mapear datos al eje X
-                    const dataPoints = data.map(d => d[inst.name]);
-                    
-                    // Crear gradiente dinámico
-                    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-                    gradient.addColorStop(0, inst.color + '80'); // 50% opacity
-                    gradient.addColorStop(1, inst.color + '00'); // 0% opacity
+          {/* --- HEADER SECUNDARIO: VOLVER Y ACCIONES --- */}
+          <div className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+            <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-bold px-2 py-1">
+              <ArrowLeft size={18} /> Volver a la lista
+            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => onEdit(caseData.id)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+              >
+                <Edit2 size={16} /> Editar
+              </button>
+              <button 
+                onClick={() => setShowDeleteModal(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition-colors"
+              >
+                <Trash2 size={16} /> Borrar
+              </button>
+            </div>
+          </div>
 
-                    return {
-                        label: inst.name,
-                        data: dataPoints,
-                        borderColor: inst.color,
-                        backgroundColor: gradient,
-                        fill: true,
-                        tension: 0.3,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#fff',
-                        pointBorderColor: inst.color,
-                        borderWidth: 2
-                    };
-                });
-
-                chartInstanceRef.current = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: data.map(d => d.displayDate),
-                        datasets: datasets
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: {
-                            mode: 'index',
-                            intersect: false,
-                        },
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                                titleColor: '#38bdf8',
-                                bodyColor: '#e2e8f0',
-                                borderColor: 'rgba(255,255,255,0.1)',
-                                borderWidth: 1,
-                                padding: 12,
-                                displayColors: true,
-                                callbacks: {
-                                    label: function(context) {
-                                        let label = context.dataset.label || '';
-                                        if (label) {
-                                            label += ': ';
-                                        }
-                                        if (context.parsed.y !== null) {
-                                            label += new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(context.parsed.y);
-                                        }
-                                        return label;
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                                ticks: { color: '#94a3b8' }
-                            },
-                            y: {
-                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                                ticks: { 
-                                    color: '#94a3b8',
-                                    callback: function(value) {
-                                        return '$' + value / 1000 + 'k';
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-
-                return () => {
-                    if (chartInstanceRef.current) {
-                        chartInstanceRef.current.destroy();
-                        chartInstanceRef.current = null;
-                    }
-                };
-            }, [data, institutions, viewMode]);
-
-            return <canvas ref={canvasRef} />;
-        };
-
-        // --- Componente Principal ---
-        const CostDashboard = () => {
-            // Datos Iniciales
-            const [institutions, setInstitutions] = useState([
-                {
-                    id: 1,
-                    name: 'IES',
-                    color: '#0ea5e9',
-                    data: [
-                        { date: '2024-03', matricula: 30000, semestre: 522756 },
-                        { date: '2025-03', matricula: 45000, semestre: 575030 },
-                        { date: '2026-03', matricula: 0, semestre: 1210000 },
-                    ]
-                },
-                {
-                    id: 2,
-                    name: 'Saber',
-                    color: '#1e3a8a',
-                    data: [
-                        { date: '2024-03', matricula: 70000, semestre: 315000 },
-                        { date: '2025-03', matricula: 75000, semestre: 405000 },
-                        { date: '2026-03', matricula: 96165, semestre: 961650 },
-                    ]
-                },
-                {
-                    id: 3,
-                    name: 'Santo Domingo',
-                    color: '#0d9488',
-                    data: [
-                        { date: '2024-03', matricula: 44000, semestre: 294000 },
-                        { date: '2025-03', matricula: 74600, semestre: 449820 },
-                        { date: '2026-03', matricula: 0, semestre: 1143600 },
-                    ]
-                },
-                {
-                    id: 4,
-                    name: 'Siglo 21',
-                    color: '#22c55e',
-                    data: [
-                        { date: '2024-03', matricula: 0, semestre: 469000 },
-                        { date: '2025-03', matricula: 0, semestre: 332304 },
-                        { date: '2026-03', matricula: 229417, semestre: 1376502 },
-                    ]
-                },
-                {
-                    id: 5,
-                    name: 'CEBA',
-                    color: '#ec4899',
-                    data: [
-                        { date: '2024-03', matricula: 60000, semestre: 270000 },
-                        { date: '2025-03', matricula: 60000, semestre: 300000 },
-                        { date: '2026-03', matricula: 150000, semestre: 750000 },
-                    ]
-                },
-                {
-                    id: 6,
-                    name: 'Cervantes',
-                    color: '#4338ca',
-                    data: [
-                        { date: '2024-03', matricula: 0, semestre: 242550 },
-                        { date: '2025-03', matricula: 34650, semestre: 346500 },
-                        { date: '2026-03', matricula: 62500, semestre: 760000 },
-                    ]
-                }
-            ]);
-
-            const [viewMode, setViewMode] = useState('semestre'); // 'matricula' | 'semestre'
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            // Filtros
-            const [selectedInstIds, setSelectedInstIds] = useState([]); 
-            const [dateRange, setDateRange] = useState({ start: '', end: '' });
+            {/* Columna Izquierda: Información del Estudiante y Estado */}
+            <div className="lg:col-span-1 space-y-6">
+              
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 border-t-4" style={{ borderTopColor: careerInfo.hex }}>
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-2xl font-bold text-slate-800">{caseData.nombre}</h3>
+                    <p className="text-slate-500 font-medium">{caseData.caseNumber} • {caseData.matricula}</p>
+                  </div>
+                  <StatusBadge status={caseData.estado} />
+                </div>
 
-            // Modales
-            const [showAddModal, setShowAddModal] = useState(false);
-            const [showUpdateModal, setShowUpdateModal] = useState(null); 
-            const [editingInstNameId, setEditingInstNameId] = useState(null);
-            
-            // Formularios
-            const [newCostDate, setNewCostDate] = useState('');
-            const [newMatricula, setNewMatricula] = useState('');
-            const [newSemestre, setNewSemestre] = useState('');
-            const [tempName, setTempName] = useState('');
-
-            // --- Lógica ---
-            const formatDateDisplay = (dateStr) => {
-                if (!dateStr) return '';
-                const [year, month] = dateStr.split('-');
-                const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-                return `${months[parseInt(month) - 1]} ${year}`;
-            };
-
-            const filteredInstitutions = useMemo(() => {
-                if (selectedInstIds.length === 0) return institutions;
-                return institutions.filter(i => selectedInstIds.includes(i.id));
-            }, [institutions, selectedInstIds]);
-
-            const chartData = useMemo(() => {
-                const allDates = new Set();
-                filteredInstitutions.forEach(inst => inst.data.forEach(d => allDates.add(d.date)));
-                let sortedDates = Array.from(allDates).sort();
-
-                if (dateRange.start) sortedDates = sortedDates.filter(d => d >= dateRange.start);
-                if (dateRange.end) sortedDates = sortedDates.filter(d => d <= dateRange.end);
-
-                return sortedDates.map(date => {
-                    const entry = { name: date, displayDate: formatDateDisplay(date) };
-                    filteredInstitutions.forEach(inst => {
-                        const record = inst.data.find(d => d.date === date);
-                        entry[inst.name] = record ? record[viewMode] : null;
-                    });
-                    return entry;
-                });
-            }, [filteredInstitutions, viewMode, dateRange]);
-
-            const calculateMetrics = (data, type) => {
-                if (!data || data.length < 2) return { diff: 0, percent: 0, last: data[data.length - 1]?.[type] || 0 };
-                
-                const sortedData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
-                const first = sortedData[0][type];
-                const last = sortedData[sortedData.length - 1][type];
-                
-                if (first === 0) return { diff: last, percent: last > 0 ? 100 : 0, last };
-
-                const diff = last - first;
-                const percent = ((last - first) / first) * 100;
-                
-                return { diff, percent, last };
-            };
-
-            // --- Handlers ---
-            const toggleInstFilter = (id) => {
-                setSelectedInstIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
-            };
-
-            const handleAddInstitution = (name) => {
-                if(!name.trim()) return;
-                const colors = ['#0ea5e9', '#3b82f6', '#06b6d4', '#6366f1'];
-                const newInst = {
-                    id: Date.now(),
-                    name: name,
-                    color: colors[institutions.length % colors.length],
-                    data: []
-                };
-                setInstitutions([...institutions, newInst]);
-                setShowAddModal(false);
-            };
-
-            const handleUpdateColor = (id, newColor) => {
-                setInstitutions(prev => prev.map(inst => inst.id === id ? { ...inst, color: newColor } : inst));
-            };
-
-            const handleSaveCost = () => {
-                if (!newCostDate || !showUpdateModal) return;
-                setInstitutions(prev => prev.map(inst => {
-                    if (inst.id === showUpdateModal) {
-                        const existingIndex = inst.data.findIndex(d => d.date === newCostDate);
-                        let newData = [...inst.data];
-                        const newEntry = { date: newCostDate, matricula: parseFloat(newMatricula) || 0, semestre: parseFloat(newSemestre) || 0 };
-                        if (existingIndex >= 0) newData[existingIndex] = newEntry;
-                        else newData.push(newEntry);
-                        newData.sort((a, b) => new Date(a.date) - new Date(b.date));
-                        return { ...inst, data: newData };
-                    }
-                    return inst;
-                }));
-                setNewMatricula(''); setNewSemestre(''); setNewCostDate(''); setShowUpdateModal(null);
-            };
-
-            const handleEditHistoryItem = (record) => {
-                setNewCostDate(record.date);
-                setNewMatricula(record.matricula);
-                setNewSemestre(record.semestre);
-            };
-
-            const handleDeleteHistoryItem = (dateToDelete) => {
-                if (!window.confirm("¿Borrar este mes?")) return;
-                setInstitutions(prev => prev.map(inst => {
-                    if (inst.id === showUpdateModal) {
-                        return { ...inst, data: inst.data.filter(d => d.date !== dateToDelete) };
-                    }
-                    return inst;
-                }));
-            };
-
-            const handleUpdateName = () => {
-                if (!tempName.trim()) return;
-                setInstitutions(prev => prev.map(inst => inst.id === editingInstNameId ? { ...inst, name: tempName } : inst));
-                setEditingInstNameId(null);
-            };
-
-            const handleDeleteInst = (id) => {
-                if(window.confirm('¿Eliminar institución completa?')) {
-                    setInstitutions(prev => prev.filter(i => i.id !== id));
-                    setSelectedInstIds(prev => prev.filter(i => i !== id));
-                }
-            };
-
-            const clearFilters = () => {
-                setSelectedInstIds([]);
-                setDateRange({ start: '', end: '' });
-            };
-
-            const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
-
-            const activeInst = institutions.find(i => i.id === showUpdateModal);
-
-            // Generar clave única para forzar el re-render del Chart
-            // Esto arregla el bug donde el canvas no se limpiaba bien al desfiltrar
-            const chartKey = `${viewMode}-${selectedInstIds.join('-')}-${filteredInstitutions.length}`;
-
-            // --- Render ---
-            return (
-                <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 p-4 md:p-8">
-                    
-                    {/* Header */}
-                    <header className="mb-8 flex flex-col md:flex-row justify-between items-center gap-4 p-6 rounded-2xl bg-white/5 backdrop-blur-lg border border-white/10 shadow-2xl">
-                        <div>
-                            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-blue-500">
-                                Tablero de Costos
-                            </h1>
-                            <p className="text-slate-400 text-sm mt-1">Comparativa de Evolución Financiera</p>
-                        </div>
-                        <button onClick={() => setShowAddModal(true)} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-semibold shadow-lg transition-all flex items-center gap-2 border border-blue-400/20">
-                            <Icon name="plus" size={18} /> Nueva Institución
-                        </button>
-                    </header>
-
-                    {/* Controles Vista */}
-                    <div className="flex justify-center mb-6 gap-4">
-                        <button onClick={() => setViewMode('matricula')} className={`flex items-center gap-2 px-6 py-2 rounded-full font-medium transition-all border ${viewMode === 'matricula' ? 'bg-sky-500 border-sky-400 text-white' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}>
-                            <Icon name="book-open" size={18}/> Matrículas
-                        </button>
-                        <button onClick={() => setViewMode('semestre')} className={`flex items-center gap-2 px-6 py-2 rounded-full font-medium transition-all border ${viewMode === 'semestre' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}>
-                            <Icon name="graduation-cap" size={18}/> Semestres
-                        </button>
+                <div className="space-y-4 mt-6">
+                  
+                  {/* Etiquetas de Tipo de Alumno */}
+                  {caseData.tipoAlumno && caseData.tipoAlumno.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {caseData.tipoAlumno.map(tipo => (
+                        <span key={tipo} className="px-2.5 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-wider rounded border border-slate-200">
+                          {tipo}
+                        </span>
+                      ))}
                     </div>
+                  )}
 
-                    {/* Gráfico */}
-                    <section className="mb-8 p-6 rounded-3xl bg-slate-900/50 backdrop-blur-xl border border-white/10 shadow-xl"> 
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                           <h2 className="text-lg font-semibold text-slate-300 flex items-center gap-2 shrink-0">
-                            <Icon name="activity" className="text-sky-400" size={20}/> 
-                            Evolución: {viewMode === 'matricula' ? 'Matrículas' : 'Costo Semestral'}
-                          </h2>
-                          
-                          {/* Barra de Filtros */}
-                          <div className="flex flex-wrap items-center gap-3 bg-black/30 p-2 rounded-xl border border-white/5 w-full md:w-auto">
-                             <div className="flex items-center gap-2 px-2">
-                                <Icon name="filter" size={14} className="text-sky-400" />
-                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ver:</span>
-                             </div>
+                  <div>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Carrera</p>
+                    <span 
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-bold shadow-sm"
+                      style={{ backgroundColor: careerInfo.hex, color: '#FFFFFF' }}
+                    >
+                      {caseData.carrera}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Modalidad Actual</p>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                      {caseData.modalidad || 'No especificada'}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Motivo Principal</p>
+                    <div className="flex items-center gap-2 text-slate-700 bg-slate-100 px-3 py-2 rounded-xl font-bold border border-slate-200">
+                      <AlertCircle size={16} className={isTimeIssue ? "text-blue-500" : "text-amber-500"}/> {caseData.motivo}
+                    </div>
+                  </div>
+                  {caseData.empresaAmiga && (
+                    <div>
+                      <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Convenio Corporativo</p>
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        Empresa Amiga: {caseData.nombreEmpresa || 'Sí'}
+                      </span>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Teléfono</p>
+                    <p className="text-slate-700 font-bold flex items-center gap-2">
+                      {caseData.telefono}
+                    </p>
+                  </div>
+                  <div className="pt-2">
+                    <a 
+                      href={`https://wa.me/${cleanPhone}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white py-3 rounded-xl font-bold transition-colors shadow-sm"
+                    >
+                      <MessageCircle size={18} /> Contactar por WhatsApp
+                    </a>
+                  </div>
+                </div>
+              </div>
 
-                             <div className="flex flex-wrap items-center gap-1">
-                               <button onClick={() => setSelectedInstIds([])} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all border ${selectedInstIds.length === 0 ? 'bg-white text-slate-900 border-white' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'}`}>
-                                 Todas
-                               </button>
-                               {institutions.map(inst => {
-                                 const isActive = selectedInstIds.includes(inst.id);
-                                 return (
-                                   <button key={inst.id} onClick={() => toggleInstFilter(inst.id)} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 border ${isActive ? 'text-white border-transparent shadow-lg' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'}`} style={{ backgroundColor: isActive ? inst.color : undefined }}>
-                                     {isActive && <Icon name="check" size={12} />} {inst.name}
-                                   </button>
-                                 )
-                               })}
-                             </div>
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                 <h4 className="font-bold text-slate-800 mb-4">Actualizar Estado Final</h4>
+                 <div className="grid grid-cols-1 gap-2">
+                    {STATUSES.map(s => (
+                      <button 
+                        key={s}
+                        onClick={() => updateStatus(s)}
+                        className={`text-left px-4 py-2.5 rounded-xl border transition-all ${caseData.estado === s ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-bold ring-1 ring-indigo-500' : 'border-slate-200 text-slate-600 font-medium hover:bg-slate-50'}`}
+                      >
+                        Marcar como: {s}
+                      </button>
+                    ))}
+                 </div>
+                 <p className="text-[10px] text-slate-400 mt-3 italic text-center leading-tight">Nota: Marcar como "Retenido" o "Baja" cerrará y enviará el caso a Archivados automáticamente.</p>
+              </div>
 
-                             <div className="w-px h-4 bg-white/10 mx-1 hidden md:block"></div>
+            </div>
 
-                             <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-2 py-1 border border-white/5">
-                                <span className="text-[10px] text-slate-400">Desde:</span>
-                                <input type="month" value={dateRange.start} onChange={(e) => setDateRange({...dateRange, start: e.target.value})} className="bg-transparent text-xs text-white focus:outline-none w-24 [color-scheme:dark] cursor-pointer" />
-                             </div>
-                             <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-2 py-1 border border-white/5">
-                                <span className="text-[10px] text-slate-400">Hasta:</span>
-                                 <input type="month" value={dateRange.end} onChange={(e) => setDateRange({...dateRange, end: e.target.value})} className="bg-transparent text-xs text-white focus:outline-none w-24 [color-scheme:dark] cursor-pointer" />
-                             </div>
-
-                             {(selectedInstIds.length > 0 || dateRange.start || dateRange.end) && (
-                                <button onClick={clearFilters} className="ml-auto md:ml-2 p-1.5 hover:bg-red-500/20 rounded-full text-slate-400 hover:text-red-400 transition-colors" title="Limpiar filtros">
-                                  <Icon name="refresh-ccw" size={14} />
-                                </button>
-                             )}
+            {/* Columna Derecha: Estrategia y NUEVO Historial de Negociación */}
+            <div className="lg:col-span-2 space-y-6 flex flex-col">
+              
+              {/* Tarjetas de Estrategia */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex-shrink-0">
+                <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <Search className="text-indigo-500" size={18}/> Estrategia de Retención Calculada
+                  </h3>
+                </div>
+                
+                <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5 bg-slate-50/50">
+                  
+                  {/* Estrategia Económica */}
+                  <div className={`rounded-xl border shadow-sm bg-white ${isTimeIssue && !isEconIssue ? 'border-slate-200' : 'border-emerald-200'}`}>
+                    <div className={`p-3 border-b ${isTimeIssue && !isEconIssue ? 'border-slate-100' : 'border-emerald-100 bg-emerald-50/50 rounded-t-xl'}`}>
+                      <h4 className={`text-sm font-bold flex items-center gap-1.5 ${isTimeIssue && !isEconIssue ? 'text-slate-500' : 'text-emerald-800'}`}>
+                         Oferta Económica (Semestre)
+                      </h4>
+                    </div>
+                    <div className="p-4">
+                      {isTimeIssue && !isEconIssue ? (
+                        <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                          Motivo de <strong>Tiempo/Laboral</strong> detectado. Enfoque exclusivo en Modalidades. No ofrezca economía salvo pedido explícito.
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {caseData.empresaAmiga ? (
+                            <p className="text-[11px] text-emerald-700 bg-emerald-50 p-2 rounded border border-emerald-100">
+                              Alumno con <strong>20% activo (Empresa Amiga)</strong>. Ofrecer ayudas sobre cuota base:
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-emerald-700 bg-emerald-50 p-2 rounded border border-emerald-100">
+                              Alumno <strong>SIN descuentos activos</strong>. Ofrecer estas ayudas especiales:
+                            </p>
+                          )}
+                          <div className="flex justify-between items-center text-sm border-b border-slate-100 pb-1.5">
+                            <span className="font-bold text-slate-600">Oferta Inicial:</span>
+                            <span className="font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{totalBaseDiscount}%</span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="font-bold text-slate-600">Máx. c/Comprobante:</span>
+                            <span className="font-extrabold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">{totalProofDiscount}%</span>
                           </div>
                         </div>
-
-                        <div className="relative h-[400px] w-full">
-                            {/* key prop agregada aquí para forzar el re-montaje al cambiar filtros */}
-                            <ChartComponent 
-                                key={chartKey} 
-                                data={chartData} 
-                                institutions={filteredInstitutions} 
-                                viewMode={viewMode} 
-                            />
-                        </div>
-                    </section>
-
-                    {/* Tarjetas Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {institutions.map(inst => {
-                            const matMetrics = calculateMetrics(inst.data, 'matricula');
-                            const semMetrics = calculateMetrics(inst.data, 'semestre');
-                            const isEditingName = editingInstNameId === inst.id;
-                            
-                            return (
-                                <div key={inst.id} className="relative overflow-hidden group p-6 rounded-3xl bg-slate-800/40 backdrop-blur-md border border-white/5 hover:border-sky-500/30 transition-all hover:bg-slate-800/60">
-                                    {/* Header Tarjeta */}
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div className="flex items-center gap-3 w-full">
-                                            {/* Selector Color */}
-                                            <div className="relative group/color cursor-pointer" title="Cambiar color">
-                                                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-bold text-white shadow-lg shrink-0 transition-transform hover:scale-105 overflow-hidden" style={{ backgroundColor: inst.color }}>
-                                                    {inst.name.charAt(0)}
-                                                    <div className="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity">
-                                                        <Icon name="palette" size={20} className="text-white drop-shadow-md" />
-                                                    </div>
-                                                </div>
-                                                <input type="color" value={inst.color} onChange={(e) => handleUpdateColor(inst.id, e.target.value)} className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10" />
-                                            </div>
-                                            
-                                            {isEditingName ? (
-                                                <div className="flex items-center gap-2 flex-1">
-                                                    <input autoFocus type="text" value={tempName} onChange={(e) => setTempName(e.target.value)} className="bg-black/40 text-white rounded px-2 py-1 text-lg font-bold w-full outline-none border border-sky-500" />
-                                                    <button onClick={handleUpdateName} className="text-emerald-400 hover:text-emerald-300"><Icon name="save" size={18}/></button>
-                                                    <button onClick={() => setEditingInstNameId(null)} className="text-red-400 hover:text-red-300"><Icon name="x" size={18}/></button>
-                                                </div>
-                                            ) : (
-                                                <div className="group/title flex items-center gap-2 cursor-pointer" onClick={() => { setEditingInstNameId(inst.id); setTempName(inst.name); }}>
-                                                    <div>
-                                                        <h3 className="font-bold text-xl text-white hover:text-sky-300 transition-colors flex items-center gap-2">
-                                                            {inst.name}
-                                                            <Icon name="pencil" size={12} className="opacity-0 group-hover:opacity-100 text-gray-400"/>
-                                                        </h3>
-                                                        <div className="flex gap-2 text-xs font-medium text-slate-400 mt-1">
-                                                            <span className="bg-white/5 px-2 py-0.5 rounded border border-white/5">{inst.data.length} meses</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                        
-                                        {!isEditingName && (
-                                            <button onClick={() => handleDeleteInst(inst.id)} className="p-2 hover:bg-red-500/10 rounded-lg text-slate-600 hover:text-red-400 transition-colors">
-                                                <Icon name="trash-2" size={18} />
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {/* Métricas */}
-                                    <div className="space-y-4">
-                                        <div className="p-4 rounded-2xl bg-black/20 border border-white/5 hover:border-sky-500/30 transition-colors relative overflow-hidden">
-                                            <div className="absolute top-0 right-0 w-16 h-16 bg-sky-500/10 rounded-bl-full -mr-8 -mt-8 pointer-events-none"></div>
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="text-xs text-sky-300 font-bold flex items-center gap-1 uppercase tracking-wider"><Icon name="book-open" size={12} className="mr-1 inline"/> Matrícula</span>
-                                                <span className="text-[10px] text-slate-500 bg-black/30 px-2 py-0.5 rounded-full">{inst.data.length > 0 ? formatDateDisplay(inst.data[inst.data.length-1].date) : 'Sin datos'}</span>
-                                            </div>
-                                            <div className="flex justify-between items-end relative z-10">
-                                                <span className="text-2xl font-bold text-white">{formatCurrency(matMetrics.last)}</span>
-                                                <div className="text-right">
-                                                    <div className={`text-sm font-bold ${matMetrics.percent > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>{matMetrics.percent > 0 ? '+' : ''}{matMetrics.percent.toFixed(0)}%</div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="p-4 rounded-2xl bg-black/20 border border-white/5 hover:border-blue-500/30 transition-colors relative overflow-hidden">
-                                            <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-bl-full -mr-8 -mt-8 pointer-events-none"></div>
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="text-xs text-blue-300 font-bold flex items-center gap-1 uppercase tracking-wider"><Icon name="graduation-cap" size={12} className="mr-1 inline"/> Semestre</span>
-                                                <span className="text-[10px] text-slate-500 bg-black/30 px-2 py-0.5 rounded-full">{inst.data.length > 0 ? formatDateDisplay(inst.data[inst.data.length-1].date) : 'Sin datos'}</span>
-                                            </div>
-                                            <div className="flex justify-between items-end relative z-10">
-                                                <span className="text-2xl font-bold text-white">{formatCurrency(semMetrics.last)}</span>
-                                                <div className="text-right">
-                                                    <div className={`text-sm font-bold ${semMetrics.percent > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>{semMetrics.percent > 0 ? '+' : ''}{semMetrics.percent.toFixed(0)}%</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <button onClick={() => { setNewCostDate(''); setShowUpdateModal(inst.id); setNewMatricula(''); setNewSemestre(''); }} className="mt-6 w-full py-3 rounded-xl bg-gradient-to-r from-slate-800 to-slate-700 hover:from-sky-900 hover:to-blue-900 border border-white/5 text-sm font-semibold transition-all flex justify-center items-center gap-2 text-slate-300 hover:text-white">
-                                        <Icon name="edit-2" size={16} /> Gestionar Costos
-                                    </button>
-                                </div>
-                            );
-                        })}
+                      )}
                     </div>
+                  </div>
 
-                    {/* Modal Nueva Institución */}
-                    {showAddModal && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-                            <div className="w-full max-w-md bg-[#020617] border border-sky-900/30 rounded-2xl p-6 shadow-2xl relative">
-                                <button onClick={() => setShowAddModal(false)} className="absolute top-4 right-4 text-slate-500 hover:text-white"><Icon name="x" size={20} /></button>
-                                <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-white border-b border-white/5 pb-4"><Icon name="building-2" className="text-sky-400"/> Nueva Institución</h3>
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs text-slate-400 mb-1">Nombre</label>
-                                        <input type="text" placeholder="Ej. Universidad X" className="input-glass" id="newInstName" autoFocus />
-                                    </div>
-                                    <button onClick={() => handleAddInstitution(document.getElementById('newInstName').value)} className="w-full py-3 rounded-xl font-bold text-white bg-sky-600 hover:bg-sky-500 transition-colors">Crear</button>
-                                </div>
-                            </div>
+                  {/* Opciones de Modalidad */}
+                  <div className="bg-white rounded-xl border border-blue-200 shadow-sm overflow-hidden">
+                    <div className="p-3 border-b border-blue-100 bg-blue-50/50">
+                      <h4 className="text-sm font-bold text-blue-800 flex items-center gap-1.5">Opciones de Cambio Modalidad</h4>
+                    </div>
+                    <div className="p-4 space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                      {careerInfo.modalities.map(mod => (
+                        <div key={mod} className={`rounded-lg p-2.5 border ${caseData.modalidad === mod ? 'border-blue-400 bg-blue-50' : 'border-slate-100 bg-slate-50'}`}>
+                          <span className="font-bold text-blue-900 text-xs flex justify-between items-center mb-1">
+                            {mod} {caseData.modalidad === mod && <span className="text-[9px] bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded uppercase">Actual</span>}
+                          </span>
+                          <span className="text-[11px] text-slate-600 leading-tight block">{MODALITY_RULES[mod]}</span>
                         </div>
-                    )}
+                      ))}
+                    </div>
+                  </div>
 
-                    {/* Modal Gestionar Costos */}
-                    {showUpdateModal && activeInst && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-                            <div className="w-full max-w-md bg-[#020617] border border-sky-900/30 rounded-2xl p-6 shadow-2xl relative">
-                                <button onClick={() => setShowUpdateModal(null)} className="absolute top-4 right-4 text-slate-500 hover:text-white"><Icon name="x" size={20} /></button>
-                                <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-white border-b border-white/5 pb-4">
-                                    <Icon name="activity" className="text-sky-400"/> Gestionar: {activeInst.name}
-                                </h3>
-                                
-                                <div className="grid grid-cols-1 gap-6">
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-xs text-slate-400 mb-1">Fecha (Mes/Año)</label>
-                                            <input type="month" value={newCostDate} onChange={(e) => setNewCostDate(e.target.value)} className="input-glass [color-scheme:dark] text-center" />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-xs text-sky-300 mb-1">Matrícula ($)</label>
-                                                <input type="number" value={newMatricula} onChange={(e) => setNewMatricula(e.target.value)} className="input-glass text-right" placeholder="0" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs text-blue-300 mb-1">Semestre ($)</label>
-                                                <input type="number" value={newSemestre} onChange={(e) => setNewSemestre(e.target.value)} className="input-glass text-right" placeholder="0" />
-                                            </div>
-                                        </div>
-                                        <button onClick={handleSaveCost} className="w-full py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors flex justify-center items-center gap-2"><Icon name="save" size={18}/> Guardar / Actualizar</button>
-                                    </div>
-
-                                    <div className="border-t border-white/10 pt-4 mt-2">
-                                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Icon name="history" size={12}/> Historial</h4>
-                                        <div className="max-h-[150px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                                            {activeInst.data.slice().reverse().map((record, idx) => (
-                                                <div key={idx} onClick={() => handleEditHistoryItem(record)} className={`flex justify-between items-center p-2 rounded-lg cursor-pointer transition-all border ${newCostDate === record.date ? 'bg-sky-500/20 border-sky-500/50' : 'bg-white/5 border-transparent hover:bg-white/10'}`}>
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="font-mono text-xs text-sky-200 bg-sky-900/30 px-2 py-1 rounded">{formatDateDisplay(record.date)}</span>
-                                                        <div className="flex flex-col">
-                                                           <span className="text-[10px] text-slate-400">M: {formatCurrency(record.matricula)}</span>
-                                                           <span className="text-[10px] text-slate-400">S: {formatCurrency(record.semestre)}</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteHistoryItem(record.date); }} className="p-1 hover:bg-red-500/20 text-slate-500 hover:text-red-400 rounded"><Icon name="trash-2" size={14}/></button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
-            );
-        };
+              </div>
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<CostDashboard />);
-    </script>
+              {/* --- HISTORIAL DE NEGOCIACIÓN (NUEVO) --- */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col flex-1 min-h-[400px]">
+                <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50 rounded-t-2xl">
+                  <MessageSquare size={20} className="text-slate-400" />
+                  <h3 className="font-bold text-slate-700">Historial de Seguimiento / Interacciones</h3>
+                </div>
+
+                {/* Contenedor del Chat */}
+                <div 
+                  ref={chatContainerRef}
+                  className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-slate-50/30"
+                >
+                  {interacciones.map((msg, index) => {
+                    const d = new Date(msg.fecha);
+                    const isAsesor = msg.rol === 'asesor';
+                    const isAlumno = msg.rol === 'alumno';
+                    const isSistema = msg.rol === 'sistema'; // Observacion inicial
+                    
+                    return (
+                      <div key={msg.id || index} className={`flex w-full ${isAsesor ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] flex gap-3 ${isAsesor ? 'flex-row-reverse' : 'flex-row'}`}>
+                          
+                          {/* Avatar */}
+                          <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center shadow-sm ${
+                            isAsesor ? 'bg-indigo-100 text-indigo-600' : 
+                            isSistema ? 'bg-amber-100 text-amber-600' : 
+                            'bg-slate-200 text-slate-600'
+                          }`}>
+                            {isAsesor ? <User size={14} /> : isSistema ? <AlertCircle size={14} /> : <User size={14} />}
+                          </div>
+
+                          {/* Mensaje */}
+                          <div className={`flex flex-col ${isAsesor ? 'items-end' : 'items-start'}`}>
+                            <div className="flex items-center gap-2 mb-1 px-1">
+                              <span className="text-[11px] font-bold text-slate-500 uppercase">
+                                {isAsesor ? 'Tú (Asesor)' : isSistema ? 'Motivo Inicial' : 'Alumno'}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {d.toLocaleDateString()} {d.getHours()}:{String(d.getMinutes()).padStart(2, '0')}
+                              </span>
+                            </div>
+                            <div className={`p-3.5 rounded-2xl text-sm shadow-sm whitespace-pre-wrap leading-relaxed ${
+                              isAsesor ? 'bg-indigo-600 text-white rounded-tr-none' : 
+                              isSistema ? 'bg-amber-50 border border-amber-100 text-amber-900 rounded-tl-none italic' : 
+                              'bg-white border border-slate-200 text-slate-700 rounded-tl-none'
+                            }`}>
+                              {msg.texto}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {interacciones.length === 0 && (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-3 opacity-60">
+                      <MessageSquare size={40} />
+                      <p className="text-sm font-medium">Aún no hay interacciones registradas.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Input Area */}
+                <div className="p-4 bg-white border-t border-slate-100 rounded-b-2xl">
+                  <div className="flex flex-col gap-3">
+                    <textarea 
+                      rows={2}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none custom-scrollbar transition-all"
+                      placeholder="Escribe el ofrecimiento realizado o la respuesta del alumno..."
+                      value={newInteraction}
+                      onChange={(e) => setNewInteraction(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          // Podríamos hacer que Enter envíe como 'asesor' por defecto, pero mejor dejar que elijan el botón
+                        }
+                      }}
+                    ></textarea>
+                    
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button 
+                        onClick={() => handleAddInteraction('alumno')}
+                        disabled={!newInteraction.trim()}
+                        className="px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 border border-slate-200"
+                      >
+                        Registrar Respuesta Alumno
+                      </button>
+                      <button 
+                        onClick={() => handleAddInteraction('asesor')}
+                        disabled={!newInteraction.trim()}
+                        className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm"
+                      >
+                        Registrar mi Oferta / Mensaje <Send size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Inicializar y renderizar la aplicación
+    const root = createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
 </body>
 </html>
